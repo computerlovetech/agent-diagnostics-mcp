@@ -1,0 +1,68 @@
+# SQLite (default local path for api booking store)
+booking.db
+booking.db-wal
+booking.db-shm
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+dist/
+build/
+
+# Node
+node_modules/
+.next/
+.turbo/
+*.tsbuildinfo
+
+# Env files (keep .env.example committed)
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Office
+*.docx
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/*
+!.vscode/*.code-workspace
+*.swp
+
+# Logs
+*.log
+logs/
+
+# Secrets
+*.pem
+*.key
+
+# Reference repos (cloned by tools/refs.sh, only manifest.json is tracked)
+refs/own/
+refs/external/
+
+# Sveltekit
+.svelte-kit/
+build/
+out/
+dist/
+
+# Ignore harness logs
+.cursor/hooks/.harness-edit-log.ndjson
+.cursor/hooks/.harness-analysis-log.json
+.cursor/hooks/.harness-analysis-log.ndjson
+
+# sqlite.
+booking.db
