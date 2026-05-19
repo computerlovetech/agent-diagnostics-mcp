@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
@@ -86,3 +87,13 @@ class TestRepositoryContract:
         for _ in range(5):
             repo.save(_sample_creation())
         assert len(repo.list_recent(limit=3)) == 3
+
+
+class TestSqliteDiagnosticRepository:
+    def test_can_be_used_from_worker_thread(self, sqlite_repo: SqliteDiagnosticRepository) -> None:
+        sqlite_repo.save(_sample_creation())
+
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            reports = executor.submit(sqlite_repo.list_recent).result()
+
+        assert len(reports) == 1

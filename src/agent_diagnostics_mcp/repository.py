@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+from threading import Lock
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Protocol
@@ -58,28 +59,31 @@ class InMemoryDiagnosticRepository:
 class SqliteDiagnosticRepository:
     def __init__(self, db_path: Path = _DEFAULT_DB_PATH) -> None:
         db_path.parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(str(db_path))
-        self._conn.execute("PRAGMA journal_mode=WAL")
-        self._conn.execute(_CREATE_TABLE)
-        self._conn.commit()
+        self._conn = sqlite3.connect(str(db_path), check_same_thread=False)
+        self._lock = Lock()
+        with self._lock:
+            self._conn.execute("PRAGMA journal_mode=WAL")
+            self._conn.execute(_CREATE_TABLE)
+            self._conn.commit()
 
     def save(self, report: DiagnosticReportCreate) -> DiagnosticReport:
         now = datetime.now(timezone.utc)
-        cursor = self._conn.execute(
-            """
-            INSERT INTO diagnostic_reports (category, severity, summary, evidence, suggested_fix, created_at)
-            VALUES (?, ?, ?, ?, ?, ?)
-            """,
-            (
-                report.category.value,
-                report.severity.value,
-                report.summary,
-                report.evidence,
-                report.suggested_fix,
-                now.isoformat(),
-            ),
-        )
-        self._conn.commit()
+        with self._lock:
+            cursor = self._conn.execute(
+                """
+                INSERT INTO diagnostic_reports (category, severity, summary, evidence, suggested_fix, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    report.category.value,
+                    report.severity.value,
+                    report.summary,
+                    report.evidence,
+                    report.suggested_fix,
+                    now.isoformat(),
+                ),
+            )
+            self._conn.commit()
         return DiagnosticReport(
             id=cursor.lastrowid,  # type: ignore[arg-type]
             category=report.category,
@@ -91,11 +95,12 @@ class SqliteDiagnosticRepository:
         )
 
     def list_recent(self, limit: int = 20) -> list[DiagnosticReport]:
-        rows = self._conn.execute(
-            "SELECT id, category, severity, summary, evidence, suggested_fix, created_at "
-            "FROM diagnostic_reports ORDER BY id DESC LIMIT ?",
-            (limit,),
-        ).fetchall()
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT id, category, severity, summary, evidence, suggested_fix, created_at "
+                "FROM diagnostic_reports ORDER BY id DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
         return [
             DiagnosticReport(
                 id=row[0],
@@ -110,4 +115,5 @@ class SqliteDiagnosticRepository:
         ]
 
     def close(self) -> None:
-        self._conn.close()
+        with self._lock:
+            self._conn.close()
