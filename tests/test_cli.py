@@ -4,7 +4,7 @@ import socket
 import click
 import pytest
 
-from agent_diagnostics_mcp.cli import _DEFAULT_PORT, _ensure_port_available, main
+from agent_diagnostics_mcp.cli import DEFAULT_PORT, ensure_port_available, main
 
 
 def test_ensure_port_available_allows_free_port() -> None:
@@ -13,7 +13,7 @@ def test_ensure_port_available_allows_free_port() -> None:
         free.bind((host, 0))
         free_port = free.getsockname()[1]
 
-    _ensure_port_available(host, free_port)
+    ensure_port_available(host, free_port)
 
 
 def test_ensure_port_available_fails_when_port_is_bound() -> None:
@@ -24,7 +24,7 @@ def test_ensure_port_available_fails_when_port_is_bound() -> None:
         occupied_port = occupied.getsockname()[1]
 
         with pytest.raises(click.ClickException, match="already in use"):
-            _ensure_port_available(host, occupied_port)
+            ensure_port_available(host, occupied_port)
 
 
 def test_run_uses_default_port(monkeypatch) -> None:
@@ -33,12 +33,14 @@ def test_run_uses_default_port(monkeypatch) -> None:
     def fake_run(app, host, port, reload):
         run_args.update(app=app, host=host, port=port, reload=reload)
 
-    monkeypatch.setattr("agent_diagnostics_mcp.cli._ensure_port_available", lambda host, port: None)
-    monkeypatch.setattr("agent_diagnostics_mcp.cli.uvicorn.run", fake_run)
+    monkeypatch.setattr(
+        "agent_diagnostics_mcp.cli.server.ensure_port_available", lambda host, port: None
+    )
+    monkeypatch.setattr("agent_diagnostics_mcp.cli.server.uvicorn.run", fake_run)
 
     main(["run"])
 
-    assert run_args["port"] == _DEFAULT_PORT
+    assert run_args["port"] == DEFAULT_PORT
 
 
 def test_run_uses_cli_port(monkeypatch) -> None:
@@ -47,8 +49,10 @@ def test_run_uses_cli_port(monkeypatch) -> None:
     def fake_run(app, host, port, reload):
         run_args.update(app=app, host=host, port=port, reload=reload)
 
-    monkeypatch.setattr("agent_diagnostics_mcp.cli._ensure_port_available", lambda host, port: None)
-    monkeypatch.setattr("agent_diagnostics_mcp.cli.uvicorn.run", fake_run)
+    monkeypatch.setattr(
+        "agent_diagnostics_mcp.cli.server.ensure_port_available", lambda host, port: None
+    )
+    monkeypatch.setattr("agent_diagnostics_mcp.cli.server.uvicorn.run", fake_run)
 
     main(["run", "--port", "9000"])
 
@@ -71,7 +75,7 @@ def test_main_uninstalls_from_all_providers(tmp_path, monkeypatch, capsys) -> No
     codex_file = tmp_path / "config.toml"
 
     def fake_default_settings_file(client):
-        from agent_diagnostics_mcp.mcp_install import McpClient
+        from agent_diagnostics_mcp.cli.mcp_install import McpClient
 
         return {
             McpClient.CURSOR: cursor_file,
@@ -80,7 +84,7 @@ def test_main_uninstalls_from_all_providers(tmp_path, monkeypatch, capsys) -> No
         }[client]
 
     monkeypatch.setattr(
-        "agent_diagnostics_mcp.mcp_install.default_settings_file",
+        "agent_diagnostics_mcp.cli.mcp_install.default_settings_file",
         fake_default_settings_file,
     )
 

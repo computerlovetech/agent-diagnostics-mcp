@@ -1,0 +1,2 @@
+DEFAULT_PORT = 8765
+DEFAULT_MCP_SERVER_NAME = "agent-diagnostics"

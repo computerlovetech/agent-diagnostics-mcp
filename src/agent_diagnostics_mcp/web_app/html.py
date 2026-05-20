@@ -1,10 +1,4 @@
-from fastapi import FastAPI, Query
-from fastapi.responses import HTMLResponse
-
 from agent_diagnostics_mcp.domain import CATEGORY_DESCRIPTIONS, DiagnosticReport
-from agent_diagnostics_mcp.mcp_server import build_diagnostics_mcp
-from agent_diagnostics_mcp.repository import DiagnosticRepository, SqliteDiagnosticRepository
-from agent_diagnostics_mcp.service import DiagnosticService
 
 _SEVERITY_COLORS = {
     "low": "#22c55e",
@@ -13,7 +7,7 @@ _SEVERITY_COLORS = {
 }
 
 
-def _render_html(reports: list[DiagnosticReport], limit: int) -> str:
+def render_html(reports: list[DiagnosticReport], limit: int) -> str:
     category_cards = "".join(
         f'<div class="cat-card"><strong>{cat.value}</strong><br>{desc}</div>'
         for cat, desc in CATEGORY_DESCRIPTIONS.items()
@@ -88,36 +82,3 @@ def _render_html(reports: list[DiagnosticReport], limit: int) -> str:
 </table>
 </body>
 </html>"""
-
-
-def create_app(repository: DiagnosticRepository | None = None) -> FastAPI:
-    repo = repository or SqliteDiagnosticRepository()
-    service = DiagnosticService(repo)
-    mcp_app = build_diagnostics_mcp(repo).http_app(path="/")
-
-    app = FastAPI(
-        title="Agent Diagnostics",
-        version="0.1.0",
-        lifespan=mcp_app.lifespan,
-    )
-
-    @app.get("/health")
-    def health() -> dict[str, str]:
-        return {"status": "ok"}
-
-    @app.get("/api/diagnostics")
-    def list_diagnostics(
-        limit: int = Query(default=20, ge=1, le=100),
-    ) -> list[DiagnosticReport]:
-        return service.list_recent(limit)
-
-    @app.get("/", response_class=HTMLResponse)
-    def index(limit: int = Query(default=20, ge=1, le=100)) -> HTMLResponse:
-        reports = service.list_recent(limit)
-        return HTMLResponse(_render_html(reports, limit))
-
-    app.mount("/mcp", mcp_app)
-    return app
-
-
-app = create_app()

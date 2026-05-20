@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from agent_diagnostics_mcp.mcp_install import (
+from agent_diagnostics_mcp.cli.mcp_install import (
     McpClient,
     install_mcp_server,
     uninstall_all_mcp_servers,
@@ -163,7 +163,7 @@ def test_uninstall_all_mcp_servers_from_each_provider(tmp_path, monkeypatch) -> 
         }[client]
 
     monkeypatch.setattr(
-        "agent_diagnostics_mcp.mcp_install.default_settings_file",
+        "agent_diagnostics_mcp.cli.mcp_install.default_settings_file",
         fake_default_settings_file,
     )
 
