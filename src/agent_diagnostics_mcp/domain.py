@@ -42,11 +42,11 @@ class DiagnosticSeverity(StrEnum):
 
 
 class DiagnosticReportCreate(BaseModel):
-    category: DiagnosticCategory
-    severity: DiagnosticSeverity
-    summary: str = Field(min_length=5)
-    evidence: str = Field(min_length=5)
-    suggested_fix: str = Field(min_length=5)
+    category: DiagnosticCategory = Field(description="The category of the diagnostic report.")
+    severity: DiagnosticSeverity = Field(description="The severity of the diagnostic report.")
+    summary: str = Field(min_length=5 ,description="A concise summary of the issue.")
+    evidence: str = Field(min_length=5,description="A concise summary of the evidence for the issue.")
+    suggested_fix: str = Field(min_length=5,description="A suggested fix to the reported issue.")
 
 
 class DiagnosticReport(BaseModel):

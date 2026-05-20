@@ -66,3 +66,6 @@ dist/
 
 # sqlite.
 booking.db
+
+# test files
+no-permission.txt

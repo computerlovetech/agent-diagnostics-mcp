@@ -1,6 +1,7 @@
 import json
 
 from fastmcp import FastMCP
+from pydantic import Field
 
 from agent_diagnostics_mcp.domain import (
     CATEGORY_DESCRIPTIONS,
@@ -15,17 +16,20 @@ _CATEGORY_LINES = "\n".join(
     f"- {cat.value}: {desc}" for cat, desc in CATEGORY_DESCRIPTIONS.items()
 )
 
-_REPORT_DESCRIPTION = f"""Use this tool only when you detect a genuine agent failure.
+_REPORT_DESCRIPTION = f"""Use this tool when you detect a failure to complete an action or the user requested task. 
 
-Report failures that would help a developer improve the agent, its tools, its prompts, or its evals.
+Always consider if there is anything to report when agent finished the requested task.
 
-Do not report ordinary uncertainty, normal clarifying questions, harmless retries, or user-caused ambiguity unless the agent is blocked.
+Report failures in the following categories.
 
-Categories:
+Failure categories are:
 {_CATEGORY_LINES}
 
+Include summary, evidence, and suggested fix that would help a developer improve the agent's ability to reach the expected outcome.
+
 The evidence should be concrete and concise.
-The suggested_fix should be actionable."""
+
+The suggested_fix should be actionable and concise."""
 
 
 def _register_report_tool(mcp: FastMCP, service: DiagnosticService) -> None:
@@ -34,11 +38,11 @@ def _register_report_tool(mcp: FastMCP, service: DiagnosticService) -> None:
         description=_REPORT_DESCRIPTION,
     )
     def report_agent_diagnostic(
-        category: DiagnosticCategory,
-        severity: DiagnosticSeverity,
-        summary: str,
-        evidence: str,
-        suggested_fix: str,
+        category: DiagnosticCategory = Field(description="The category of the diagnostic report."),
+        severity: DiagnosticSeverity = Field(description="The severity of the diagnostic report."),
+        summary: str = Field(min_length=5 ,description="A concise summary of the diagnostic report."),
+        evidence: str = Field(min_length=5,description="A concise summary of the diagnostic report."),
+        suggested_fix: str = Field(min_length=5,description="A concise summary of the diagnostic report."),
     ) -> str:
         creation = DiagnosticReportCreate(
             category=category,
@@ -56,7 +60,7 @@ def _register_list_tool(mcp: FastMCP, service: DiagnosticService) -> None:
         name="list_agent_diagnostics",
         description="Read recent agent diagnostic reports.",
     )
-    def list_agent_diagnostics(limit: int = 20) -> str:
+    def list_agent_diagnostics(limit: int = Field(default=20, ge=1, le=50, description="The number of recent diagnostic reports to list.")) -> str:
         reports = service.list_recent(limit)
         return json.dumps([r.model_dump(mode="json") for r in reports], indent=2)
 
@@ -64,12 +68,8 @@ def _register_list_tool(mcp: FastMCP, service: DiagnosticService) -> None:
 def build_diagnostics_mcp(repository: DiagnosticRepository | None = None) -> FastMCP:
     repo = repository or SqliteDiagnosticRepository()
     service = DiagnosticService(repo)
-    mcp = FastMCP(name="agent-diagnostics")
+    mcp = FastMCP(name="agent-diagnostics", instructions="Use this MCP server to report failures to perform actions during or after an agent run.")
     _register_report_tool(mcp, service)
     _register_list_tool(mcp, service)
     return mcp
 
-
-if __name__ == "__main__":
-    mcp = build_diagnostics_mcp()
-    mcp.run(transport="http", host="127.0.0.1", port=8011, path="/mcp")

@@ -4,36 +4,55 @@ import socket
 import click
 import pytest
 
-from agent_diagnostics_mcp.cli import _DEFAULT_PORT, _choose_available_port, main
+from agent_diagnostics_mcp.cli import _DEFAULT_PORT, _ensure_port_available, main
 
 
-def test_choose_available_port_starts_with_default_port() -> None:
-    assert _choose_available_port("127.0.0.1", [_DEFAULT_PORT]) == _DEFAULT_PORT
+def test_ensure_port_available_allows_free_port() -> None:
+    host = "127.0.0.1"
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as free:
+        free.bind((host, 0))
+        free_port = free.getsockname()[1]
+
+    _ensure_port_available(host, free_port)
 
 
-def test_choose_available_port_skips_bound_port() -> None:
+def test_ensure_port_available_fails_when_port_is_bound() -> None:
     host = "127.0.0.1"
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as occupied:
         occupied.bind((host, 0))
         occupied.listen()
         occupied_port = occupied.getsockname()[1]
 
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as free:
-            free.bind((host, 0))
-            free_port = free.getsockname()[1]
-
-        assert _choose_available_port(host, [occupied_port, free_port]) == free_port
+        with pytest.raises(click.ClickException, match="already in use"):
+            _ensure_port_available(host, occupied_port)
 
 
-def test_choose_available_port_fails_when_range_is_full() -> None:
-    host = "127.0.0.1"
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as occupied:
-        occupied.bind((host, 0))
-        occupied.listen()
-        occupied_port = occupied.getsockname()[1]
+def test_run_uses_default_port(monkeypatch) -> None:
+    run_args = {}
 
-        with pytest.raises(RuntimeError):
-            _choose_available_port(host, [occupied_port])
+    def fake_run(app, host, port, reload):
+        run_args.update(app=app, host=host, port=port, reload=reload)
+
+    monkeypatch.setattr("agent_diagnostics_mcp.cli._ensure_port_available", lambda host, port: None)
+    monkeypatch.setattr("agent_diagnostics_mcp.cli.uvicorn.run", fake_run)
+
+    main(["run"])
+
+    assert run_args["port"] == _DEFAULT_PORT
+
+
+def test_run_uses_cli_port(monkeypatch) -> None:
+    run_args = {}
+
+    def fake_run(app, host, port, reload):
+        run_args.update(app=app, host=host, port=port, reload=reload)
+
+    monkeypatch.setattr("agent_diagnostics_mcp.cli._ensure_port_available", lambda host, port: None)
+    monkeypatch.setattr("agent_diagnostics_mcp.cli.uvicorn.run", fake_run)
+
+    main(["run", "--port", "9000"])
+
+    assert run_args["port"] == 9000
 
 
 def test_main_without_subcommand_shows_help(capsys) -> None:
