@@ -21,3 +21,7 @@ MCP_CLIENTS = {
 
 def default_mcp_url(port: int = DEFAULT_PORT) -> str:
     return f"http://localhost:{port}/mcp/"
+
+
+def default_hooks_url(port: int = DEFAULT_PORT) -> str:
+    return f"http://localhost:{port}/api/tool-call-failures"

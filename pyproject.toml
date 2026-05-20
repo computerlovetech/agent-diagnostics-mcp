@@ -17,6 +17,7 @@ dependencies = [
 
 [project.scripts]
 agent-diagnostics = "agent_diagnostics_mcp.cli:main"
+agent-diagnostics-hook-report = "agent_diagnostics_mcp.hooks.runner:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/agent_diagnostics_mcp"]

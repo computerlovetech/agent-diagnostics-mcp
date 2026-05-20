@@ -4,9 +4,15 @@ from typing import Annotated, Sequence
 import typer
 
 from agent_diagnostics_mcp.cli.constants import DEFAULT_MCP_SERVER_NAME, DEFAULT_PORT
-from agent_diagnostics_mcp.cli.mcp_clients import MCP_CLIENTS, CliMcpClient, default_mcp_url
-from agent_diagnostics_mcp.cli.server import run_server
+from agent_diagnostics_mcp.cli.hook_install import install_hooks, uninstall_all_hooks
+from agent_diagnostics_mcp.cli.mcp_clients import (
+    MCP_CLIENTS,
+    CliMcpClient,
+    default_hooks_url,
+    default_mcp_url,
+)
 from agent_diagnostics_mcp.cli.mcp_install import install_mcp_server, uninstall_all_mcp_servers
+from agent_diagnostics_mcp.cli.server import run_server
 
 app = typer.Typer(
     help="Run and install the Agent Diagnostics MCP server.",
@@ -37,6 +43,16 @@ def install(
         Path | None,
         typer.Option(help="Settings file to update instead of the default user file."),
     ] = None,
+    hooks: Annotated[
+        bool, typer.Option("--hooks", help="Also install failure-reporting hooks.")
+    ] = False,
+    hooks_url: Annotated[
+        str, typer.Option(help="Hook target URL.")
+    ] = default_hooks_url(),
+    hooks_settings_file: Annotated[
+        Path | None,
+        typer.Option(help="Hooks settings file to update instead of the default."),
+    ] = None,
 ) -> None:
     result = install_mcp_server(
         client=MCP_CLIENTS[client],
@@ -48,14 +64,27 @@ def install(
         f"Installed {result.server_name} for {result.client.value} in "
         f"{result.settings_file} using {result.url}"
     )
+    if hooks:
+        hook_result = install_hooks(
+            client=MCP_CLIENTS[client],
+            url=hooks_url,
+            settings_file=hooks_settings_file,
+        )
+        msg = (
+            f"Installed hooks for {hook_result.client.value} in "
+            f"{hook_result.settings_file} targeting {hook_result.url}"
+        )
+        if hook_result.hook_script is not None:
+            msg += f" (script: {hook_result.hook_script})"
+        typer.echo(msg)
 
 
 @app.command()
 def uninstall(
     name: Annotated[str, typer.Option(help="MCP server name.")] = DEFAULT_MCP_SERVER_NAME,
 ) -> None:
-    results = uninstall_all_mcp_servers(server_name=name)
-    for result in results:
+    mcp_results = uninstall_all_mcp_servers(server_name=name)
+    for result in mcp_results:
         if result.removed:
             typer.echo(
                 f"Removed {result.server_name} from {result.client.value} "
@@ -65,6 +94,13 @@ def uninstall(
             typer.echo(
                 f"No {result.server_name} entry in {result.client.value} "
                 f"({result.settings_file})"
+            )
+
+    hook_results = uninstall_all_hooks()
+    for result in hook_results:
+        if result.removed:
+            typer.echo(
+                f"Removed hooks from {result.client.value} in {result.settings_file}"
             )
 
 

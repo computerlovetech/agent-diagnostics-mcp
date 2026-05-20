@@ -159,6 +159,47 @@ url = "http://localhost:8765/mcp/"
 
 Verify with `codex mcp list` or `/mcp` in the Codex TUI.
 
+## Hook installation
+
+Hooks forward failed tool calls from your agent harness to the diagnostics server. Start the
+server first (`agent-diagnostics run`), then pass `--hooks` when installing.
+
+```bash
+uv run agent-diagnostics install cursor --hooks
+uv run agent-diagnostics install claude-code --hooks
+uv run agent-diagnostics install codex --hooks
+```
+
+This writes both the MCP server entry and a failure-reporting hook for the chosen client.
+
+**Options:**
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `--hooks` | off | Also install failure-reporting hooks |
+| `--hooks-url` | `http://localhost:8765/api/tool-call-failures` | Hook target URL |
+| `--hooks-settings-file` | Client default (see below) | Path to a custom hooks settings file |
+
+### Hooks settings files
+
+| Client | Default hooks file | Hook event |
+| --- | --- | --- |
+| Cursor | `~/.cursor/hooks.json` | `postToolUseFailure` |
+| Claude Code | `~/.claude/settings.json` | `PostToolUseFailure` |
+| Codex | `~/.codex/hooks.json` | `PostToolUse` (with runner-side failure detection) |
+
+Claude Code uses a native HTTP hook that POSTs directly to the API. Cursor and Codex install a
+standalone Python script next to the hooks settings file (for example `~/.cursor/hooks/agent-diagnostics-tool-call-failure.py`
+or `.cursor/hooks/agent-diagnostics-tool-call-failure.py` in a project). The script only needs
+the Python standard library and does not require this package to be installed. Codex fires
+`PostToolUse` for all tool completions, so the script filters out successful calls before
+reporting.
+
+For project hooks, pass `--hooks-settings-file .cursor/hooks.json` so the script is written under
+`.cursor/hooks/` and referenced as `.cursor/hooks/agent-diagnostics-tool-call-failure.py`.
+
+`agent-diagnostics uninstall` removes both MCP entries and hooks from all providers.
+
 ## Storage
 
 Reports are stored in `~/.agent-diagnostics/diagnostics.sqlite3` by default. The mounted MCP endpoint and the web UI share the same repository instance.
