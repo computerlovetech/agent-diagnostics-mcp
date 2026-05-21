@@ -22,19 +22,18 @@ def hook_command_for_settings(settings_file: Path) -> str:
     return f"python3 {script}"
 
 
-def render_hook_script(url: str, provider: str | None = None) -> str:
-    provider_lit = "None" if provider is None else repr(provider)
+def render_hook_script(url: str, provider: str) -> str:
     return _SCRIPT_TEMPLATE.format(
         marker=MARKER,
         url=repr(url),
-        provider=provider_lit,
+        provider=repr(provider),
     )
 
 
 def write_hook_script(
     settings_file: Path,
     url: str,
-    provider: str | None = None,
+    provider: str,
 ) -> Path:
     hooks_dir = hooks_dir_for_settings(settings_file)
     hooks_dir.mkdir(parents=True, exist_ok=True)
@@ -69,34 +68,9 @@ _URL = {url}
 _PROVIDER = {provider}
 
 
-def _detect_codex_failure(payload):
-    tool_response = payload.get("tool_response")
-    if not isinstance(tool_response, dict):
-        return None
-
-    for key in ("exitCode", "exit_code"):
-        code = tool_response.get(key)
-        if isinstance(code, int) and code != 0:
-            stderr = tool_response.get("stderr", "")
-            return str(stderr).strip() or f"Exit code {{code}}"
-
-    if tool_response.get("isError") is True:
-        content = tool_response.get("content", "")
-        return str(content).strip() or "Tool returned isError"
-
-    return None
-
-
-def _post_url():
-    if _PROVIDER is None:
-        return _URL
-    sep = "&" if "?" in _URL else "?"
-    return f"{{_URL}}{{sep}}provider={{_PROVIDER}}"
-
-
-def _post(url, payload):
+def _post(payload):
     req = urllib.request.Request(
-        url,
+        _URL,
         data=payload,
         headers={{"Content-Type": "application/json"}},
         method="POST",
@@ -109,21 +83,10 @@ def _post(url, payload):
 
 
 def main():
-    try:
-        payload = json.load(sys.stdin)
-    except (json.JSONDecodeError, ValueError):
-        return
+    payload = json.load(sys.stdin)
 
-    if not isinstance(payload, dict):
-        return
-
-    if _PROVIDER == "codex" or payload.get("hook_event_name") == "PostToolUse":
-        reason = _detect_codex_failure(payload)
-        if reason is None:
-            return
-        payload["stopReason"] = reason
-
-    _post(_post_url(), json.dumps(payload).encode())
+    payload["provider"] = _PROVIDER
+    _post(json.dumps(payload).encode())
 
 
 if __name__ == "__main__":

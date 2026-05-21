@@ -26,6 +26,7 @@ def test_install_cursor_hooks_creates_hooks_json(tmp_path: Path) -> None:
     assert result.hook_script is not None
     assert result.hook_script.exists()
     assert MARKER in result.hook_script.read_text()
+    assert "_PROVIDER = 'cursor'" in result.hook_script.read_text()
     assert _URL in result.hook_script.read_text()
 
 
@@ -47,7 +48,7 @@ def test_install_claude_hooks_preserves_unrelated_settings(tmp_path: Path) -> No
     path = tmp_path / "settings.json"
     path.write_text(json.dumps({"theme": "dark", "mcpServers": {"foo": {}}}))
 
-    install_hooks(McpClient.CLAUDE, _URL, settings_file=path)
+    result = install_hooks(McpClient.CLAUDE, _URL, settings_file=path)
 
     config = json.loads(path.read_text())
     assert config["theme"] == "dark"
@@ -55,8 +56,11 @@ def test_install_claude_hooks_preserves_unrelated_settings(tmp_path: Path) -> No
     groups = config["hooks"]["PostToolUseFailure"]
     assert len(groups) == 1
     hook = groups[0]["hooks"][0]
-    assert hook["type"] == "http"
-    assert _URL in hook["url"]
+    assert hook["type"] == "command"
+    assert SCRIPT_BASENAME in hook["command"]
+    assert result.hook_script is not None
+    assert "_PROVIDER = 'claude'" in result.hook_script.read_text()
+    assert _URL in result.hook_script.read_text()
 
 
 def test_install_copilot_hooks_creates_hooks_json(tmp_path: Path) -> None:

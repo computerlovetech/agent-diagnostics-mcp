@@ -13,14 +13,15 @@ from agent_diagnostics_mcp.domain import (
 )
 from agent_diagnostics_mcp.events import event_hub
 from agent_diagnostics_mcp.factory import create_diagnostic_service
+from agent_diagnostics_mcp.hooks.tool_failures import (
+    ToolFailureInput,
+    ToolFailureNormalizer,
+    UnsupportedHookEventError,
+    build_diagnostic,
+)
 from agent_diagnostics_mcp.mcp_server import build_diagnostics_mcp
 from agent_diagnostics_mcp.repository import DiagnosticRepository
 from agent_diagnostics_mcp.web_app.diagnostic_stream import diagnostic_events
-from agent_diagnostics_mcp.web_app.tool_failures import (
-    build_diagnostic,
-    detect_provider,
-    should_save,
-)
 
 _WEB_APP_DIR = Path(__file__).parent
 _PUBLIC_DIR = _WEB_APP_DIR / "public"
@@ -71,27 +72,22 @@ def create_app(repository: DiagnosticRepository | None = None) -> FastAPI:
             for category, description in CATEGORY_DESCRIPTIONS.items()
         ]
 
-    @app.post("/api/tool-call-failures")
-    async def log_tool_call_failure(
-        request: Request,
-        provider: str | None = Query(default=None),
-    ) -> dict[str, Any]:
-        payload = await request.json()
-        if not isinstance(payload, dict):
-            raise HTTPException(status_code=400, detail="Payload must be a JSON object")
+    normalizer = ToolFailureNormalizer()
 
-        detected = detect_provider(payload, provider)
-        save = should_save(payload, detected)
-        if save is None:
-            hook_event = payload.get("hook_event_name", "")
+    @app.post("/api/tool-call-failures")
+    async def log_tool_call_failure(body: ToolFailureInput) -> dict[str, Any]:
+        try:
+            normalized = normalizer.normalize(body)
+        except UnsupportedHookEventError as exc:
             raise HTTPException(
                 status_code=400,
-                detail=f"Unsupported hook event for {detected.value}: {hook_event}",
-            )
-        if not save:
+                detail=f"Unsupported hook event for {body.provider}: {exc.args[0]}",
+            ) from exc
+
+        if normalized is None:
             return {"saved": False, "reason": "not_a_failure"}
 
-        saved = _save_and_publish(build_diagnostic(payload, detected))
+        saved = _save_and_publish(build_diagnostic(normalized))
         return {
             "saved": True,
             "id": saved.id,

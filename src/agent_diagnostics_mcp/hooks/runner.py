@@ -2,9 +2,6 @@ import argparse
 import json
 import sys
 import urllib.request
-from typing import Any
-
-from agent_diagnostics_mcp.hooks.codex import detect_codex_failure
 
 
 def _post(url: str, payload: bytes) -> None:
@@ -21,20 +18,15 @@ def _post(url: str, payload: bytes) -> None:
         pass
 
 
-def _process(payload: dict[str, Any], url: str, provider: str | None) -> None:
-    if provider == "codex" or payload.get("hook_event_name") == "PostToolUse":
-        reason = detect_codex_failure(payload)
-        if reason is None:
-            return
-        payload["stopReason"] = reason
-
+def _process(payload: dict, url: str, provider: str) -> None:
+    payload["provider"] = provider
     _post(url, json.dumps(payload).encode())
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--url", required=True)
-    parser.add_argument("--provider", default=None)
+    parser.add_argument("--provider", required=True)
     args = parser.parse_args()
 
     try:

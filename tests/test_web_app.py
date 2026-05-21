@@ -135,6 +135,7 @@ class TestToolCallFailures:
         self, client: AsyncClient, repo: InMemoryDiagnosticRepository
     ) -> None:
         payload = {
+            "provider": "cursor",
             "hook_event_name": "postToolUseFailure",
             "tool_name": "Shell",
             "tool_input": {"command": "npm test"},
@@ -163,6 +164,7 @@ class TestToolCallFailures:
         self, client: AsyncClient, repo: InMemoryDiagnosticRepository
     ) -> None:
         payload = {
+            "provider": "claude",
             "hook_event_name": "PostToolUseFailure",
             "tool_name": "Bash",
             "tool_input": {"command": "npm test"},
@@ -188,6 +190,7 @@ class TestToolCallFailures:
         self, client: AsyncClient, repo: InMemoryDiagnosticRepository
     ) -> None:
         payload = {
+            "provider": "codex",
             "hook_event_name": "PostToolUse",
             "tool_name": "Bash",
             "tool_input": {"command": "npm test"},
@@ -212,6 +215,7 @@ class TestToolCallFailures:
         self, client: AsyncClient, repo: InMemoryDiagnosticRepository
     ) -> None:
         payload = {
+            "provider": "copilot",
             "hook_event_name": "postToolUseFailure",
             "sessionId": "sess-1",
             "toolName": "bash",
@@ -219,10 +223,7 @@ class TestToolCallFailures:
             "error": "Command exited with status 1",
             "cwd": "/project",
         }
-        resp = await client.post(
-            "/api/tool-call-failures?provider=copilot",
-            json=payload,
-        )
+        resp = await client.post("/api/tool-call-failures", json=payload)
         assert resp.status_code == 200
         data = resp.json()
         assert data["saved"] is True
@@ -238,6 +239,7 @@ class TestToolCallFailures:
         self, client: AsyncClient, repo: InMemoryDiagnosticRepository
     ) -> None:
         payload = {
+            "provider": "codex",
             "hook_event_name": "PostToolUse",
             "tool_name": "Bash",
             "tool_input": {"command": "npm test"},
@@ -249,10 +251,53 @@ class TestToolCallFailures:
         assert repo.list_recent() == []
 
     @pytest.mark.anyio
+    async def test_codex_post_tool_use_with_exit_code_saves_report(
+        self, client: AsyncClient, repo: InMemoryDiagnosticRepository
+    ) -> None:
+        payload = {
+            "provider": "codex",
+            "hook_event_name": "PostToolUse",
+            "tool_name": "Bash",
+            "tool_response": {"exitCode": 1, "stderr": "FAIL"},
+        }
+        resp = await client.post("/api/tool-call-failures", json=payload)
+        assert resp.status_code == 200
+        assert resp.json()["saved"] is True
+        reports = repo.list_recent()
+        assert len(reports) == 1
+        assert "FAIL" in reports[0].evidence
+
+    @pytest.mark.anyio
+    async def test_missing_provider_returns_validation_error(
+        self, client: AsyncClient, repo: InMemoryDiagnosticRepository
+    ) -> None:
+        payload = {"hook_event_name": "postToolUseFailure", "tool_name": "Shell"}
+        resp = await client.post("/api/tool-call-failures", json=payload)
+        assert resp.status_code == 422
+        assert repo.list_recent() == []
+
+    @pytest.mark.anyio
+    async def test_unknown_provider_returns_validation_error(
+        self, client: AsyncClient, repo: InMemoryDiagnosticRepository
+    ) -> None:
+        payload = {
+            "provider": "unknown",
+            "hook_event_name": "postToolUseFailure",
+            "tool_name": "Shell",
+        }
+        resp = await client.post("/api/tool-call-failures", json=payload)
+        assert resp.status_code == 422
+        assert repo.list_recent() == []
+
+    @pytest.mark.anyio
     async def test_unknown_hook_event_returns_client_error(
         self, client: AsyncClient, repo: InMemoryDiagnosticRepository
     ) -> None:
-        payload = {"hook_event_name": "sessionStart", "session_id": "abc123"}
+        payload = {
+            "provider": "cursor",
+            "hook_event_name": "sessionStart",
+            "session_id": "abc123",
+        }
         resp = await client.post("/api/tool-call-failures", json=payload)
         assert resp.status_code == 400
         assert repo.list_recent() == []
@@ -363,6 +408,7 @@ class TestSSEStream:
         self, client: AsyncClient, repo: InMemoryDiagnosticRepository
     ) -> None:
         payload = {
+            "provider": "cursor",
             "hook_event_name": "postToolUseFailure",
             "tool_name": "Shell",
             "tool_input": {"command": "npm test"},

@@ -55,7 +55,7 @@ def install_hooks(
         case McpClient.CURSOR:
             hook_script = _install_cursor_hooks(path, url)
         case McpClient.CLAUDE:
-            _install_claude_hooks(path, url)
+            hook_script = _install_claude_hooks(path, url)
         case McpClient.CODEX:
             hook_script = _install_codex_hooks(path, url)
         case McpClient.COPILOT:
@@ -135,7 +135,7 @@ def _install_cursor_hooks(path: Path, url: str) -> Path:
     if not isinstance(event_hooks, list):
         raise ValueError(f"{path} has a non-array postToolUseFailure value.")
     event_hooks[:] = [e for e in event_hooks if not (isinstance(e, dict) and _is_our_entry(e))]
-    script = write_hook_script(path, url)
+    script = write_hook_script(path, url, provider="cursor")
     event_hooks.append(_cursor_hook_entry(path))
     _write_json(path, config)
     return script
@@ -167,19 +167,18 @@ def _uninstall_cursor_hooks(path: Path) -> bool:
     return removed
 
 
-def _claude_hook_entry(url: str) -> dict[str, object]:
+def _claude_hook_entry(settings_file: Path) -> dict[str, object]:
     return {
         "hooks": [
             {
-                "type": "http",
-                "url": f"{url}?provider=claude",
-                "timeout": 10,
+                "type": "command",
+                "command": hook_command_for_settings(settings_file),
             }
         ]
     }
 
 
-def _install_claude_hooks(path: Path, url: str) -> None:
+def _install_claude_hooks(path: Path, url: str) -> Path:
     config = _read_json(path)
     hooks = config.setdefault("hooks", {})
     if not isinstance(hooks, dict):
@@ -188,23 +187,27 @@ def _install_claude_hooks(path: Path, url: str) -> None:
     if not isinstance(event_hooks, list):
         raise ValueError(f"{path} has a non-array PostToolUseFailure value.")
     event_hooks[:] = [e for e in event_hooks if not (isinstance(e, dict) and _is_our_entry(e))]
-    event_hooks.append(_claude_hook_entry(url))
+    script = write_hook_script(path, url, provider="claude")
+    event_hooks.append(_claude_hook_entry(path))
     _write_json(path, config)
+    return script
 
 
 def _uninstall_claude_hooks(path: Path) -> bool:
     if not path.exists():
+        remove_hook_script(path)
         return False
     config = _read_json(path)
     hooks = config.get("hooks")
     if not isinstance(hooks, dict):
+        remove_hook_script(path)
         return False
     event_hooks = hooks.get("PostToolUseFailure")
     if not isinstance(event_hooks, list):
+        remove_hook_script(path)
         return False
     filtered = [e for e in event_hooks if not (isinstance(e, dict) and _is_our_entry(e))]
-    if len(filtered) == len(event_hooks):
-        return False
+    removed = len(filtered) != len(event_hooks)
     if filtered:
         hooks["PostToolUseFailure"] = filtered
     else:
@@ -212,7 +215,8 @@ def _uninstall_claude_hooks(path: Path) -> bool:
     if not hooks:
         del config["hooks"]
     _write_json(path, config)
-    return True
+    remove_hook_script(path)
+    return removed
 
 
 def _codex_hook_entry(settings_file: Path) -> dict[str, object]:

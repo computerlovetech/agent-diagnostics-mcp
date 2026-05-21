@@ -1,0 +1,2 @@
+class UnsupportedHookEventError(ValueError):
+    pass
