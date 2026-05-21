@@ -3,6 +3,8 @@ import socket
 import click
 import uvicorn
 
+from agent_diagnostics_mcp.cli.constants import DEFAULT_GRACEFUL_SHUTDOWN_SECONDS
+
 def port_is_available(host: str, port: int) -> bool:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         try:
@@ -26,4 +28,5 @@ def run_server(host: str, port: int, reload: bool) -> None:
         host=host,
         port=port,
         reload=reload,
+        timeout_graceful_shutdown=DEFAULT_GRACEFUL_SHUTDOWN_SECONDS,
     )

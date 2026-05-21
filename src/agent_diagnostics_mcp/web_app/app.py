@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
@@ -36,10 +37,16 @@ def create_app(repository: DiagnosticRepository | None = None) -> FastAPI:
 
     mcp_app = build_diagnostics_mcp(service=service).http_app(path="/")
 
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI):
+        async with mcp_app.lifespan(_app):
+            yield
+        event_hub.close_all_subscribers()
+
     app = FastAPI(
         title="Agent Diagnostics",
         version="0.1.0",
-        lifespan=mcp_app.lifespan,
+        lifespan=lifespan,
     )
 
     @app.get("/health")

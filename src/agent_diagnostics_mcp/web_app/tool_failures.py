@@ -16,6 +16,7 @@ class Provider(StrEnum):
     CURSOR = "cursor"
     CLAUDE = "claude"
     CODEX = "codex"
+    COPILOT = "copilot"
 
 
 def detect_provider(payload: dict[str, Any], provider: str | None) -> Provider:
@@ -60,6 +61,8 @@ def should_save(payload: dict[str, Any], provider: Provider) -> bool | None:
         if hook_event != "PostToolUse":
             return None
         return extract_stop_reason(payload) is not None
+    if provider == Provider.COPILOT:
+        return hook_event in ("postToolUseFailure", "PostToolUseFailure")
     return None
 
 
@@ -106,12 +109,29 @@ def _failure_fields(
             bool(payload.get("is_interrupt", False)),
             payload.get("duration_ms"),
         )
+    if provider == Provider.COPILOT:
+        error = str(payload.get("error") or payload.get("error_message", "Unknown error"))
+        failure_type = "permission_denied" if "permission" in error.lower() else "error"
+        return (
+            error,
+            failure_type,
+            bool(payload.get("is_interrupt", False)),
+            payload.get("duration") or payload.get("duration_ms"),
+        )
     stop_reason = extract_stop_reason(payload) or str(payload.get("reason", "Tool failure"))
     return stop_reason, "stop", False, None
 
 
+def _tool_name(payload: dict[str, Any]) -> str:
+    return str(payload.get("tool_name") or payload.get("toolName") or "unknown")
+
+
+def _tool_input(payload: dict[str, Any]) -> Any:
+    return payload.get("tool_input") if payload.get("tool_input") is not None else payload.get("toolArgs")
+
+
 def build_diagnostic(payload: dict[str, Any], provider: Provider) -> DiagnosticReportCreate:
-    tool_name = str(payload.get("tool_name", "unknown"))
+    tool_name = _tool_name(payload)
     error_message, failure_type, is_interrupt, duration = _failure_fields(payload, provider)
     category, severity = _category_and_severity(failure_type, is_interrupt)
 
@@ -126,7 +146,7 @@ def build_diagnostic(payload: dict[str, Any], provider: Provider) -> DiagnosticR
             "duration": duration,
             "failure_type": failure_type,
             "error": error_message,
-            "tool_input": payload.get("tool_input"),
+            "tool_input": _tool_input(payload),
         },
         default=str,
     )

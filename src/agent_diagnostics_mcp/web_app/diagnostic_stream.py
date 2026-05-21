@@ -4,8 +4,7 @@ from collections.abc import AsyncIterator
 from fastapi.sse import ServerSentEvent
 from starlette.requests import Request
 
-from agent_diagnostics_mcp.domain import DiagnosticReport
-from agent_diagnostics_mcp.events import DiagnosticEventHub
+from agent_diagnostics_mcp.events import STREAM_CLOSED, DiagnosticEventHub
 
 
 async def diagnostic_events(
@@ -25,6 +24,10 @@ async def diagnostic_events(
                     break
                 yield ServerSentEvent(comment="ping")
                 continue
+            except asyncio.CancelledError:
+                break
+            if report is STREAM_CLOSED:
+                break
             yield ServerSentEvent(event="diagnostic", raw_data=report.model_dump_json())
     finally:
         event_hub.unsubscribe(queue)

@@ -40,6 +40,8 @@ def default_hooks_settings_file(client: McpClient) -> Path:
             return home / ".claude" / "settings.json"
         case McpClient.CODEX:
             return home / ".codex" / "hooks.json"
+        case McpClient.COPILOT:
+            return home / ".copilot" / "hooks" / "agent-diagnostics.json"
 
 
 def install_hooks(
@@ -56,6 +58,8 @@ def install_hooks(
             _install_claude_hooks(path, url)
         case McpClient.CODEX:
             hook_script = _install_codex_hooks(path, url)
+        case McpClient.COPILOT:
+            hook_script = _install_copilot_hooks(path, url)
     return InstallHooksResult(
         client=client,
         settings_file=path,
@@ -76,6 +80,8 @@ def uninstall_hooks(
             removed = _uninstall_claude_hooks(path)
         case McpClient.CODEX:
             removed = _uninstall_codex_hooks(path)
+        case McpClient.COPILOT:
+            removed = _uninstall_copilot_hooks(path)
     return UninstallHooksResult(client=client, settings_file=path, removed=removed)
 
 
@@ -98,11 +104,10 @@ def _write_json(path: Path, config: dict[str, object]) -> None:
 
 
 def _is_our_entry(entry: dict[str, object]) -> bool:
-    command = entry.get("command", "")
-    if isinstance(command, str) and (
-        MARKER in command or SCRIPT_BASENAME in command
-    ):
-        return True
+    for key in ("command", "bash"):
+        value = entry.get(key, "")
+        if isinstance(value, str) and (MARKER in value or SCRIPT_BASENAME in value):
+            return True
     hooks = entry.get("hooks")
     if isinstance(hooks, list):
         for h in hooks:
@@ -255,6 +260,58 @@ def _uninstall_codex_hooks(path: Path) -> bool:
         hooks["PostToolUse"] = filtered
     else:
         del hooks["PostToolUse"]
+    if not hooks:
+        del config["hooks"]
+    _write_json(path, config)
+    remove_hook_script(path)
+    return removed
+
+
+def _copilot_hook_entry(settings_file: Path) -> dict[str, object]:
+    command = hook_command_for_settings(settings_file)
+    return {
+        "type": "command",
+        "command": command,
+        "bash": command,
+        "timeoutSec": 10,
+    }
+
+
+def _install_copilot_hooks(path: Path, url: str) -> Path:
+    config = _read_json(path)
+    config.setdefault("version", 1)
+    hooks = config.setdefault("hooks", {})
+    if not isinstance(hooks, dict):
+        raise ValueError(f"{path} has a non-object hooks value.")
+    event_hooks: list[object] = hooks.setdefault("postToolUseFailure", [])
+    if not isinstance(event_hooks, list):
+        raise ValueError(f"{path} has a non-array postToolUseFailure value.")
+    event_hooks[:] = [e for e in event_hooks if not (isinstance(e, dict) and _is_our_entry(e))]
+    script = write_hook_script(path, url, provider="copilot")
+    event_hooks.append(_copilot_hook_entry(path))
+    _write_json(path, config)
+    return script
+
+
+def _uninstall_copilot_hooks(path: Path) -> bool:
+    if not path.exists():
+        remove_hook_script(path)
+        return False
+    config = _read_json(path)
+    hooks = config.get("hooks")
+    if not isinstance(hooks, dict):
+        remove_hook_script(path)
+        return False
+    event_hooks = hooks.get("postToolUseFailure")
+    if not isinstance(event_hooks, list):
+        remove_hook_script(path)
+        return False
+    filtered = [e for e in event_hooks if not (isinstance(e, dict) and _is_our_entry(e))]
+    removed = len(filtered) != len(event_hooks)
+    if filtered:
+        hooks["postToolUseFailure"] = filtered
+    else:
+        del hooks["postToolUseFailure"]
     if not hooks:
         del config["hooks"]
     _write_json(path, config)

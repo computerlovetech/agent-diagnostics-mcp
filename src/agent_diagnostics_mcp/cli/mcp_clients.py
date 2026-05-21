@@ -8,6 +8,7 @@ class CliMcpClient(StrEnum):
     CLAUDE = "claude"
     CLAUDE_CODE = "claude-code"
     CODEX = "codex"
+    COPILOT = "copilot"
     CURSOR = "cursor"
 
 
@@ -15,6 +16,7 @@ MCP_CLIENTS = {
     CliMcpClient.CLAUDE: McpClient.CLAUDE,
     CliMcpClient.CLAUDE_CODE: McpClient.CLAUDE,
     CliMcpClient.CODEX: McpClient.CODEX,
+    CliMcpClient.COPILOT: McpClient.COPILOT,
     CliMcpClient.CURSOR: McpClient.CURSOR,
 }
 

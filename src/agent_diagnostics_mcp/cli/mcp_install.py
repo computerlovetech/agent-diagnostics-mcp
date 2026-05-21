@@ -11,6 +11,7 @@ from pathlib import Path
 class McpClient(StrEnum):
     CLAUDE = "claude"
     CODEX = "codex"
+    COPILOT = "copilot"
     CURSOR = "cursor"
 
 
@@ -41,6 +42,8 @@ def default_settings_file(client: McpClient) -> Path:
             return home / ".claude.json"
         case McpClient.CODEX:
             return home / ".codex" / "config.toml"
+        case McpClient.COPILOT:
+            return home / ".copilot" / "mcp-config.json"
         case McpClient.CURSOR:
             return home / ".cursor" / "mcp.json"
 
@@ -57,6 +60,12 @@ def install_mcp_server(
             _install_json_server(path, server_name, {"type": "http", "url": url})
         case McpClient.CODEX:
             _install_codex_server(path, server_name, url)
+        case McpClient.COPILOT:
+            _install_json_server(
+                path,
+                server_name,
+                {"type": "http", "url": url, "tools": ["*"]},
+            )
         case McpClient.CURSOR:
             _install_json_server(path, server_name, {"url": url})
     return InstallResult(client=client, settings_file=path, server_name=server_name, url=url)
@@ -69,7 +78,7 @@ def uninstall_mcp_server(
 ) -> UninstallResult:
     path = settings_file or default_settings_file(client)
     match client:
-        case McpClient.CLAUDE | McpClient.CURSOR:
+        case McpClient.CLAUDE | McpClient.COPILOT | McpClient.CURSOR:
             removed = _uninstall_json_server(path, server_name)
         case McpClient.CODEX:
             removed = _uninstall_codex_server(path, server_name)
@@ -87,7 +96,7 @@ def uninstall_all_mcp_servers(server_name: str = _SERVER_NAME) -> list[Uninstall
     ]
 
 
-def _install_json_server(path: Path, server_name: str, server: dict[str, str]) -> None:
+def _install_json_server(path: Path, server_name: str, server: dict[str, object]) -> None:
     config = _read_json_object(path)
     mcp_servers = config.setdefault("mcpServers", {})
     if not isinstance(mcp_servers, dict):

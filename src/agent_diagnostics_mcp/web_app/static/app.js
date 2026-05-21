@@ -11,6 +11,19 @@
     medium: "#eab308",
     high: "#ef4444",
   };
+  var severityLabels = {
+    low: "Low",
+    medium: "Medium",
+    high: "High",
+  };
+  var categoryLabels = {
+    missing_context: "Missing context",
+    repeatedly_broken_tool: "Repeatedly broken tool",
+    capability_gap: "Capability gap",
+    complete_task_failure: "Complete task failure",
+    suspicious_loop: "Suspicious loop",
+    bad_tool_selection: "Bad tool selection",
+  };
   var sourceLabels = {
     self_diagnostic: "Self-diagnostic",
     hook: "Hook",
@@ -19,6 +32,14 @@
     self_diagnostic: "#8b5cf6",
     hook: "#f97316",
   };
+
+  function displayLabel(labels, value) {
+    if (!value) {
+      return "";
+    }
+
+    return labels[value] || value.replace(/_/g, " ");
+  }
 
   function currentLimit() {
     var params = new URLSearchParams(window.location.search);
@@ -64,7 +85,7 @@
 
     appendText(row, "td", String(report.id));
     appendText(row, "td", formatTimestamp(report.created_at));
-    appendText(row, "td", report.category);
+    appendText(row, "td", displayLabel(categoryLabels, report.category));
 
     var sourceCell = document.createElement("td");
     var sourceBadge = appendText(
@@ -77,7 +98,11 @@
     row.appendChild(sourceCell);
 
     var severityCell = document.createElement("td");
-    var badge = appendText(severityCell, "span", report.severity);
+    var badge = appendText(
+      severityCell,
+      "span",
+      displayLabel(severityLabels, report.severity)
+    );
     badge.className = "badge";
     badge.style.background = severityColors[report.severity] || "#94a3b8";
     row.appendChild(severityCell);
@@ -135,7 +160,7 @@
     items.forEach(function (item) {
       var card = document.createElement("div");
       card.className = "cat-card";
-      appendText(card, "strong", item.name);
+      appendText(card, "strong", displayLabel(categoryLabels, item.name));
       card.appendChild(document.createElement("br"));
       card.appendChild(document.createTextNode(item.description));
       categories.appendChild(card);

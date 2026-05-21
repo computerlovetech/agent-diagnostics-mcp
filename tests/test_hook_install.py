@@ -59,6 +59,26 @@ def test_install_claude_hooks_preserves_unrelated_settings(tmp_path: Path) -> No
     assert _URL in hook["url"]
 
 
+def test_install_copilot_hooks_creates_hooks_json(tmp_path: Path) -> None:
+    path = tmp_path / ".copilot" / "hooks" / "agent-diagnostics.json"
+
+    result = install_hooks(McpClient.COPILOT, _URL, settings_file=path)
+
+    config = json.loads(path.read_text())
+    assert config["version"] == 1
+    entries = config["hooks"]["postToolUseFailure"]
+    assert len(entries) == 1
+    entry = entries[0]
+    assert entry["type"] == "command"
+    assert entry["timeoutSec"] == 10
+    assert SCRIPT_BASENAME in entry["command"]
+    assert entry["bash"] == entry["command"]
+    assert result.hook_script is not None
+    script = result.hook_script.read_text()
+    assert "_PROVIDER = 'copilot'" in script
+    assert _URL in script
+
+
 def test_install_codex_hooks_creates_hooks_json(tmp_path: Path) -> None:
     path = tmp_path / "hooks.json"
 
@@ -136,6 +156,20 @@ def test_uninstall_claude_hooks_removes_entry(tmp_path: Path) -> None:
     assert config == {"theme": "dark"}
 
 
+def test_uninstall_copilot_hooks_removes_entry(tmp_path: Path) -> None:
+    path = tmp_path / ".copilot" / "hooks" / "agent-diagnostics.json"
+    install_hooks(McpClient.COPILOT, _URL, settings_file=path)
+    script = path.parent / SCRIPT_BASENAME
+    assert script.exists()
+
+    result = uninstall_hooks(McpClient.COPILOT, settings_file=path)
+
+    assert result.removed is True
+    config = json.loads(path.read_text())
+    assert "hooks" not in config
+    assert not script.exists()
+
+
 def test_uninstall_codex_hooks_removes_entry(tmp_path: Path) -> None:
     path = tmp_path / "hooks.json"
     install_hooks(McpClient.CODEX, _URL, settings_file=path)
@@ -159,12 +193,14 @@ def test_uninstall_all_hooks_across_providers(tmp_path: Path, monkeypatch) -> No
     cursor_file = tmp_path / "cursor-hooks.json"
     claude_file = tmp_path / "claude-settings.json"
     codex_file = tmp_path / "codex-hooks.json"
+    copilot_file = tmp_path / ".copilot" / "hooks" / "agent-diagnostics.json"
 
     def fake_default(client: McpClient) -> Path:
         return {
             McpClient.CURSOR: cursor_file,
             McpClient.CLAUDE: claude_file,
             McpClient.CODEX: codex_file,
+            McpClient.COPILOT: copilot_file,
         }[client]
 
     monkeypatch.setattr(
@@ -175,10 +211,12 @@ def test_uninstall_all_hooks_across_providers(tmp_path: Path, monkeypatch) -> No
     install_hooks(McpClient.CURSOR, _URL, settings_file=cursor_file)
     install_hooks(McpClient.CLAUDE, _URL, settings_file=claude_file)
     install_hooks(McpClient.CODEX, _URL, settings_file=codex_file)
+    install_hooks(McpClient.COPILOT, _URL, settings_file=copilot_file)
 
     results = uninstall_all_hooks()
 
-    assert [r.removed for r in results] == [True, True, True]
+    assert [r.removed for r in results] == [True, True, True, True]
     assert "hooks" not in json.loads(cursor_file.read_text())
     assert "hooks" not in json.loads(claude_file.read_text())
     assert "hooks" not in json.loads(codex_file.read_text())
+    assert "hooks" not in json.loads(copilot_file.read_text())

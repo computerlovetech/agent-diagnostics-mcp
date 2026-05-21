@@ -7,7 +7,10 @@ SCRIPT_BASENAME = "agent-diagnostics-tool-call-failure.py"
 
 
 def hooks_dir_for_settings(settings_file: Path) -> Path:
-    return settings_file.parent / "hooks"
+    parent = settings_file.parent
+    if parent.name == "hooks":
+        return parent
+    return parent / "hooks"
 
 
 def hook_command_for_settings(settings_file: Path) -> str:
@@ -84,6 +87,13 @@ def _detect_codex_failure(payload):
     return None
 
 
+def _post_url():
+    if _PROVIDER is None:
+        return _URL
+    sep = "&" if "?" in _URL else "?"
+    return f"{{_URL}}{{sep}}provider={{_PROVIDER}}"
+
+
 def _post(url, payload):
     req = urllib.request.Request(
         url,
@@ -113,7 +123,7 @@ def main():
             return
         payload["stopReason"] = reason
 
-    _post(_URL, json.dumps(payload).encode())
+    _post(_post_url(), json.dumps(payload).encode())
 
 
 if __name__ == "__main__":

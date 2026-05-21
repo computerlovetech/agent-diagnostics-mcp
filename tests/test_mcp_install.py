@@ -51,6 +51,26 @@ def test_install_claude_mcp_server_preserves_unrelated_settings(tmp_path) -> Non
     }
 
 
+def test_install_copilot_mcp_server_creates_mcp_config(tmp_path) -> None:
+    settings_file = tmp_path / ".copilot" / "mcp-config.json"
+
+    install_mcp_server(
+        McpClient.COPILOT,
+        "http://localhost:8765/mcp/",
+        settings_file=settings_file,
+    )
+
+    assert json.loads(settings_file.read_text()) == {
+        "mcpServers": {
+            "agent-diagnostics": {
+                "type": "http",
+                "url": "http://localhost:8765/mcp/",
+                "tools": ["*"],
+            },
+        },
+    }
+
+
 def test_install_codex_mcp_server_creates_config_toml(tmp_path) -> None:
     settings_file = tmp_path / ".codex" / "config.toml"
 
@@ -150,16 +170,32 @@ def test_uninstall_codex_mcp_server_removes_block(tmp_path) -> None:
     }
 
 
+def test_uninstall_copilot_mcp_server_removes_entry(tmp_path) -> None:
+    settings_file = tmp_path / "mcp-config.json"
+    install_mcp_server(
+        McpClient.COPILOT,
+        "http://localhost:8765/mcp/",
+        settings_file=settings_file,
+    )
+
+    result = uninstall_mcp_server(McpClient.COPILOT, settings_file=settings_file)
+
+    assert result.removed is True
+    assert json.loads(settings_file.read_text()) == {}
+
+
 def test_uninstall_all_mcp_servers_from_each_provider(tmp_path, monkeypatch) -> None:
     cursor_file = tmp_path / ".cursor" / "mcp.json"
     claude_file = tmp_path / ".claude.json"
     codex_file = tmp_path / ".codex" / "config.toml"
+    copilot_file = tmp_path / ".copilot" / "mcp-config.json"
 
     def fake_default_settings_file(client: McpClient) -> Path:
         return {
             McpClient.CURSOR: cursor_file,
             McpClient.CLAUDE: claude_file,
             McpClient.CODEX: codex_file,
+            McpClient.COPILOT: copilot_file,
         }[client]
 
     monkeypatch.setattr(
@@ -170,13 +206,15 @@ def test_uninstall_all_mcp_servers_from_each_provider(tmp_path, monkeypatch) -> 
     install_mcp_server(McpClient.CURSOR, "http://localhost:8765/mcp/", settings_file=cursor_file)
     install_mcp_server(McpClient.CLAUDE, "http://localhost:8765/mcp/", settings_file=claude_file)
     install_mcp_server(McpClient.CODEX, "http://localhost:8765/mcp/", settings_file=codex_file)
+    install_mcp_server(McpClient.COPILOT, "http://localhost:8765/mcp/", settings_file=copilot_file)
 
     results = uninstall_all_mcp_servers()
 
-    assert [result.removed for result in results] == [True, True, True]
+    assert [result.removed for result in results] == [True, True, True, True]
     assert json.loads(cursor_file.read_text()) == {}
     assert json.loads(claude_file.read_text()) == {}
     assert not codex_file.exists()
+    assert json.loads(copilot_file.read_text()) == {}
 
 
 def test_uninstall_mcp_server_is_noop_when_missing(tmp_path) -> None:

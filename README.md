@@ -63,12 +63,13 @@ Adds or updates an `agent-diagnostics` MCP server entry for one client.
 uv run agent-diagnostics install cursor
 uv run agent-diagnostics install claude-code
 uv run agent-diagnostics install codex
+uv run agent-diagnostics install copilot
 
 # pip (after activating your venv)
 agent-diagnostics install cursor
 ```
 
-**Clients:** `cursor`, `claude-code`, `codex`. `claude` is an alias for `claude-code`.
+**Clients:** `cursor`, `claude-code`, `codex`, `copilot`. `claude` is an alias for `claude-code`.
 
 **Options:**
 
@@ -91,7 +92,7 @@ On success, the command prints which file was updated and which URL was written.
 ### `agent-diagnostics uninstall`
 
 Removes the `agent-diagnostics` MCP server entry from **all** supported clients (Cursor, Claude
-Code, and Codex) in one run.
+Code, Codex, and Copilot) in one run.
 
 ```bash
 # uv
@@ -116,6 +117,7 @@ The command reports whether an entry was removed or was already absent for each 
 | Cursor | `~/.cursor/mcp.json` |
 | Claude Code | `~/.claude.json` |
 | Codex | `~/.codex/config.toml` |
+| Copilot | `~/.copilot/mcp-config.json` |
 
 ### Cursor
 
@@ -159,6 +161,24 @@ url = "http://localhost:8765/mcp/"
 
 Verify with `codex mcp list` or `/mcp` in the Codex TUI.
 
+### Copilot
+
+The Copilot installer writes to `~/.copilot/mcp-config.json`:
+
+```json
+{
+  "mcpServers": {
+    "agent-diagnostics": {
+      "type": "http",
+      "url": "http://localhost:8765/mcp/",
+      "tools": ["*"]
+    }
+  }
+}
+```
+
+Verify with `/mcp show` in Copilot CLI.
+
 ## Hook installation
 
 Hooks forward failed tool calls from your agent harness to the diagnostics server. Start the
@@ -168,6 +188,7 @@ server first (`agent-diagnostics run`), then install for your client.
 uv run agent-diagnostics install cursor
 uv run agent-diagnostics install claude-code
 uv run agent-diagnostics install codex
+uv run agent-diagnostics install copilot
 ```
 
 `install` writes both the MCP server entry and a failure-reporting hook for the chosen client.
@@ -186,8 +207,9 @@ uv run agent-diagnostics install codex
 | Cursor | `~/.cursor/hooks.json` | `postToolUseFailure` |
 | Claude Code | `~/.claude/settings.json` | `PostToolUseFailure` |
 | Codex | `~/.codex/hooks.json` | `PostToolUse` (with runner-side failure detection) |
+| Copilot | `~/.copilot/hooks/agent-diagnostics.json` | `postToolUseFailure` |
 
-Claude Code uses a native HTTP hook that POSTs directly to the API. Cursor and Codex install a
+Claude Code uses a native HTTP hook that POSTs directly to the API. Cursor, Codex, and Copilot install a
 standalone Python script next to the hooks settings file (for example `~/.cursor/hooks/agent-diagnostics-tool-call-failure.py`
 or `.cursor/hooks/agent-diagnostics-tool-call-failure.py` in a project). The script only needs
 the Python standard library and does not require this package to be installed. Codex fires

@@ -15,7 +15,9 @@ from agent_diagnostics_mcp.domain import (
 )
 from agent_diagnostics_mcp.repository import InMemoryDiagnosticRepository
 from agent_diagnostics_mcp.web_app import create_app
-from agent_diagnostics_mcp.events import DiagnosticEventHub
+from agent_diagnostics_mcp.events import STREAM_CLOSED, DiagnosticEventHub
+from agent_diagnostics_mcp.web_app.diagnostic_stream import diagnostic_events
+from starlette.requests import Request
 
 
 @pytest.fixture
@@ -98,7 +100,8 @@ class TestIndexPage:
         assert "row-fresh" in resp.text
         assert "/api/diagnostics/stream" in resp.text
         assert "sourceLabels" in resp.text
-        assert "self_diagnostic" in resp.text
+        assert "categoryLabels" in resp.text
+        assert "Suspicious loop" in resp.text
 
 
 class TestMcpHttpTransport:
@@ -205,6 +208,32 @@ class TestToolCallFailures:
         assert "The Bash output needs review" in reports[0].evidence
 
     @pytest.mark.anyio
+    async def test_copilot_post_tool_use_failure_saves_report(
+        self, client: AsyncClient, repo: InMemoryDiagnosticRepository
+    ) -> None:
+        payload = {
+            "hook_event_name": "postToolUseFailure",
+            "sessionId": "sess-1",
+            "toolName": "bash",
+            "toolArgs": {"command": "npm test"},
+            "error": "Command exited with status 1",
+            "cwd": "/project",
+        }
+        resp = await client.post(
+            "/api/tool-call-failures?provider=copilot",
+            json=payload,
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["saved"] is True
+
+        reports = repo.list_recent()
+        assert len(reports) == 1
+        assert "copilot" in reports[0].summary
+        assert "bash" in reports[0].summary
+        assert "Command exited with status 1" in reports[0].evidence
+
+    @pytest.mark.anyio
     async def test_codex_post_tool_use_without_stop_reason_is_ignored(
         self, client: AsyncClient, repo: InMemoryDiagnosticRepository
     ) -> None:
@@ -260,6 +289,50 @@ class TestSSEStream:
         hub.unsubscribe(queue)
         hub.publish(report)
         assert queue.empty()
+
+    @pytest.mark.anyio
+    async def test_close_all_subscribers_unblocks_stream(self) -> None:
+        hub = DiagnosticEventHub()
+        queue = hub.subscribe()
+
+        hub.close_all_subscribers()
+
+        received = await asyncio.wait_for(queue.get(), timeout=1)
+        assert received is STREAM_CLOSED
+
+    @pytest.mark.anyio
+    async def test_diagnostic_events_exit_when_subscribers_closed(self) -> None:
+        hub = DiagnosticEventHub()
+        queue = hub.subscribe()
+
+        scope = {
+            "type": "http",
+            "asgi": {"version": "3.0"},
+            "http_version": "1.1",
+            "method": "GET",
+            "path": "/api/diagnostics/stream",
+            "raw_path": b"/api/diagnostics/stream",
+            "root_path": "",
+            "scheme": "http",
+            "query_string": b"",
+            "headers": [],
+            "client": ("127.0.0.1", 1234),
+            "server": ("test", 80),
+        }
+
+        async def receive():
+            return {"type": "http.disconnect"}
+
+        request = Request(scope, receive)
+        stream = diagnostic_events(request, hub, ping_interval_seconds=0.05)
+        connected = await stream.__anext__()
+        assert connected.comment == "connected"
+
+        hub.close_all_subscribers()
+        with pytest.raises(StopAsyncIteration):
+            await asyncio.wait_for(stream.__anext__(), timeout=1)
+
+        hub.unsubscribe(queue)
 
     @pytest.mark.anyio
     async def test_event_hub_instances_share_subscribers(self) -> None:
