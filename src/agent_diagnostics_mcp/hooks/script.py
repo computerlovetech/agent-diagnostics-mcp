@@ -56,7 +56,7 @@ def remove_hook_script(settings_file: Path) -> bool:
 
 _SCRIPT_TEMPLATE = """\
 #!/usr/bin/env python3
-# {marker} — standalone tool-call failure reporter (re-run agent-diagnostics install --hooks to update)
+# {marker} — standalone tool-call failure reporter (re-run agent-diagnostics install to update)
 
 import json
 import sys

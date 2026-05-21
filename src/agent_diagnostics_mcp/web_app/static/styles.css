@@ -98,6 +98,10 @@ a:hover {
   color: #0f172a;
 }
 
+.source-badge {
+  white-space: nowrap;
+}
+
 .controls {
   margin-bottom: 1.5rem;
   display: flex;

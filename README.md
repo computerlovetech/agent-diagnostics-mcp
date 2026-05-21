@@ -162,21 +162,20 @@ Verify with `codex mcp list` or `/mcp` in the Codex TUI.
 ## Hook installation
 
 Hooks forward failed tool calls from your agent harness to the diagnostics server. Start the
-server first (`agent-diagnostics run`), then pass `--hooks` when installing.
+server first (`agent-diagnostics run`), then install for your client.
 
 ```bash
-uv run agent-diagnostics install cursor --hooks
-uv run agent-diagnostics install claude-code --hooks
-uv run agent-diagnostics install codex --hooks
+uv run agent-diagnostics install cursor
+uv run agent-diagnostics install claude-code
+uv run agent-diagnostics install codex
 ```
 
-This writes both the MCP server entry and a failure-reporting hook for the chosen client.
+`install` writes both the MCP server entry and a failure-reporting hook for the chosen client.
 
-**Options:**
+**Hook options:**
 
 | Option | Default | Description |
 | --- | --- | --- |
-| `--hooks` | off | Also install failure-reporting hooks |
 | `--hooks-url` | `http://localhost:8765/api/tool-call-failures` | Hook target URL |
 | `--hooks-settings-file` | Client default (see below) | Path to a custom hooks settings file |
 

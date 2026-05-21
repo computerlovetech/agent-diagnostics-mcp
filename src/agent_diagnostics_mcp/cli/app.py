@@ -43,9 +43,6 @@ def install(
         Path | None,
         typer.Option(help="Settings file to update instead of the default user file."),
     ] = None,
-    hooks: Annotated[
-        bool, typer.Option("--hooks", help="Also install failure-reporting hooks.")
-    ] = False,
     hooks_url: Annotated[
         str, typer.Option(help="Hook target URL.")
     ] = default_hooks_url(),
@@ -64,19 +61,18 @@ def install(
         f"Installed {result.server_name} for {result.client.value} in "
         f"{result.settings_file} using {result.url}"
     )
-    if hooks:
-        hook_result = install_hooks(
-            client=MCP_CLIENTS[client],
-            url=hooks_url,
-            settings_file=hooks_settings_file,
-        )
-        msg = (
-            f"Installed hooks for {hook_result.client.value} in "
-            f"{hook_result.settings_file} targeting {hook_result.url}"
-        )
-        if hook_result.hook_script is not None:
-            msg += f" (script: {hook_result.hook_script})"
-        typer.echo(msg)
+    hook_result = install_hooks(
+        client=MCP_CLIENTS[client],
+        url=hooks_url,
+        settings_file=hooks_settings_file,
+    )
+    msg = (
+        f"Installed hooks for {hook_result.client.value} in "
+        f"{hook_result.settings_file} targeting {hook_result.url}"
+    )
+    if hook_result.hook_script is not None:
+        msg += f" (script: {hook_result.hook_script})"
+    typer.echo(msg)
 
 
 @app.command()

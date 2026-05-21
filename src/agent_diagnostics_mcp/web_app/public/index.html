@@ -12,8 +12,8 @@
 <body>
   <h1>Agent Diagnostics<span class="live-indicator disconnected" id="live-badge"><span class="live-dot"></span><span
         id="live-text">Connecting&hellip;</span></span></h1>
-  <p class="subtitle">Self-reported agent failures &middot; showing last <span id="limit-label">20</span> reports
-    &middot; <a id="json-link" href="/api/diagnostics?limit=20">JSON</a></p>
+  <p class="subtitle">Agent self-diagnostics and hook-reported failures &middot; showing last <span
+      id="limit-label">20</span> reports &middot; <a id="json-link" href="/api/diagnostics?limit=20">JSON</a></p>
 
   <details>
     <summary>Category reference</summary>
@@ -39,6 +39,7 @@
         <th>ID</th>
         <th>Time</th>
         <th>Category</th>
+        <th>Source</th>
         <th>Severity</th>
         <th>Summary</th>
         <th>Suggested Fix</th>
@@ -46,7 +47,7 @@
     </thead>
     <tbody id="reports">
       <tr id="empty-row">
-        <td colspan="6">No reports yet</td>
+        <td colspan="7">No reports yet</td>
       </tr>
     </tbody>
   </table>

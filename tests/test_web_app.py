@@ -66,6 +66,7 @@ class TestDiagnosticsApi:
         data = resp.json()
         assert len(data) == 1
         assert data[0]["category"] == "suspicious_loop"
+        assert data[0]["source"] == "self_diagnostic"
 
     @pytest.mark.anyio
     async def test_list_categories(self, client: AsyncClient) -> None:
@@ -85,6 +86,7 @@ class TestIndexPage:
         assert resp.status_code == 200
         assert "Agent Diagnostics" in resp.text
         assert "No reports yet" in resp.text
+        assert "<th>Source</th>" in resp.text
         assert '<link rel="stylesheet" href="/assets/styles.css">' in resp.text
         assert '<script src="/assets/app.js" defer></script>' in resp.text
 
@@ -95,6 +97,8 @@ class TestIndexPage:
         assert "EventSource" in resp.text
         assert "row-fresh" in resp.text
         assert "/api/diagnostics/stream" in resp.text
+        assert "sourceLabels" in resp.text
+        assert "self_diagnostic" in resp.text
 
 
 class TestMcpHttpTransport:

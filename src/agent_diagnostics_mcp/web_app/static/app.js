@@ -11,6 +11,14 @@
     medium: "#eab308",
     high: "#ef4444",
   };
+  var sourceLabels = {
+    self_diagnostic: "Self-diagnostic",
+    hook: "Hook",
+  };
+  var sourceColors = {
+    self_diagnostic: "#8b5cf6",
+    hook: "#f97316",
+  };
 
   function currentLimit() {
     var params = new URLSearchParams(window.location.search);
@@ -58,6 +66,16 @@
     appendText(row, "td", formatTimestamp(report.created_at));
     appendText(row, "td", report.category);
 
+    var sourceCell = document.createElement("td");
+    var sourceBadge = appendText(
+      sourceCell,
+      "span",
+      sourceLabels[report.source] || report.source || "Unknown"
+    );
+    sourceBadge.className = "badge source-badge";
+    sourceBadge.style.background = sourceColors[report.source] || "#94a3b8";
+    row.appendChild(sourceCell);
+
     var severityCell = document.createElement("td");
     var badge = appendText(severityCell, "span", report.severity);
     badge.className = "badge";
@@ -101,7 +119,7 @@
       var emptyRow = document.createElement("tr");
       emptyRow.id = "empty-row";
       var cell = appendText(emptyRow, "td", "No reports yet");
-      cell.colSpan = 6;
+      cell.colSpan = 7;
       tbody.appendChild(emptyRow);
       return;
     }

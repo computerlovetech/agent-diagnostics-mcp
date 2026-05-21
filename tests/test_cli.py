@@ -70,31 +70,41 @@ def test_main_without_subcommand_shows_help(capsys) -> None:
 
 
 def test_main_uninstalls_from_all_providers(tmp_path, monkeypatch, capsys) -> None:
-    cursor_file = tmp_path / "mcp.json"
-    claude_file = tmp_path / ".claude.json"
-    codex_file = tmp_path / "config.toml"
+    from agent_diagnostics_mcp.cli.mcp_install import McpClient
 
-    def fake_default_settings_file(client):
-        from agent_diagnostics_mcp.cli.mcp_install import McpClient
+    cursor_mcp = tmp_path / "cursor-mcp.json"
+    claude_mcp = tmp_path / ".claude.json"
+    codex_mcp = tmp_path / "config.toml"
+    cursor_hooks = tmp_path / "cursor-hooks.json"
+    claude_hooks = tmp_path / "claude-hooks.json"
+    codex_hooks = tmp_path / "codex-hooks.json"
 
+    def fake_mcp_default(client):
         return {
-            McpClient.CURSOR: cursor_file,
-            McpClient.CLAUDE: claude_file,
-            McpClient.CODEX: codex_file,
+            McpClient.CURSOR: cursor_mcp,
+            McpClient.CLAUDE: claude_mcp,
+            McpClient.CODEX: codex_mcp,
+        }[client]
+
+    def fake_hooks_default(client):
+        return {
+            McpClient.CURSOR: cursor_hooks,
+            McpClient.CLAUDE: claude_hooks,
+            McpClient.CODEX: codex_hooks,
         }[client]
 
     monkeypatch.setattr(
         "agent_diagnostics_mcp.cli.mcp_install.default_settings_file",
-        fake_default_settings_file,
+        fake_mcp_default,
     )
     monkeypatch.setattr(
         "agent_diagnostics_mcp.cli.hook_install.default_hooks_settings_file",
-        lambda client: fake_default_settings_file(client),
+        fake_hooks_default,
     )
 
-    main(["install", "cursor", "--settings-file", str(cursor_file)])
-    main(["install", "claude", "--settings-file", str(claude_file)])
-    main(["install", "codex", "--settings-file", str(codex_file)])
+    main(["install", "cursor", "--settings-file", str(cursor_mcp)])
+    main(["install", "claude", "--settings-file", str(claude_mcp)])
+    main(["install", "codex", "--settings-file", str(codex_mcp)])
 
     capsys.readouterr()
     main(["uninstall"])
@@ -103,30 +113,42 @@ def test_main_uninstalls_from_all_providers(tmp_path, monkeypatch, capsys) -> No
     assert "Removed agent-diagnostics from cursor" in out
     assert "Removed agent-diagnostics from claude" in out
     assert "Removed agent-diagnostics from codex" in out
-    assert json.loads(cursor_file.read_text()) == {}
-    assert json.loads(claude_file.read_text()) == {}
-    assert not codex_file.exists()
+    assert json.loads(cursor_mcp.read_text()) == {}
+    assert json.loads(claude_mcp.read_text()) == {}
+    assert not codex_mcp.exists()
+    assert "hooks" not in json.loads(cursor_hooks.read_text())
+    assert "hooks" not in json.loads(claude_hooks.read_text())
+    assert "hooks" not in json.loads(codex_hooks.read_text())
 
 
 def test_main_installs_cursor_mcp_settings(tmp_path, capsys) -> None:
     settings_file = tmp_path / "mcp.json"
+    hooks_file = tmp_path / "hooks.json"
 
-    main(["install", "cursor", "--settings-file", str(settings_file)])
+    main([
+        "install",
+        "cursor",
+        "--settings-file",
+        str(settings_file),
+        "--hooks-settings-file",
+        str(hooks_file),
+    ])
 
     assert json.loads(settings_file.read_text())["mcpServers"]["agent-diagnostics"] == {
         "url": "http://localhost:8765/mcp/",
     }
-    assert "Installed agent-diagnostics for cursor" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "Installed agent-diagnostics for cursor" in out
+    assert "Installed hooks for cursor" in out
 
 
-def test_install_with_hooks_writes_both_configs(tmp_path, capsys) -> None:
+def test_install_writes_both_configs(tmp_path, capsys) -> None:
     mcp_file = tmp_path / "mcp.json"
     hooks_file = tmp_path / "hooks.json"
 
     main([
         "install", "cursor",
         "--settings-file", str(mcp_file),
-        "--hooks",
         "--hooks-settings-file", str(hooks_file),
     ])
 
@@ -156,7 +178,6 @@ def test_uninstall_removes_hooks_too(tmp_path, monkeypatch, capsys) -> None:
     main([
         "install", "cursor",
         "--settings-file", str(cursor_mcp),
-        "--hooks",
         "--hooks-settings-file", str(cursor_hooks),
     ])
 
