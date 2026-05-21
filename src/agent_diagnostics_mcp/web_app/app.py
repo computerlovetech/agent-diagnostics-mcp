@@ -1,24 +1,40 @@
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse, EventSourceResponse
+from fastapi.staticfiles import StaticFiles
 
-from agent_diagnostics_mcp.domain import DiagnosticReport
+from agent_diagnostics_mcp.domain import (
+    CATEGORY_DESCRIPTIONS,
+    DiagnosticReport,
+    DiagnosticReportCreate,
+)
+from agent_diagnostics_mcp.events import event_hub
+from agent_diagnostics_mcp.factory import create_diagnostic_service
 from agent_diagnostics_mcp.mcp_server import build_diagnostics_mcp
-from agent_diagnostics_mcp.repository import DiagnosticRepository, SqliteDiagnosticRepository
-from agent_diagnostics_mcp.service import DiagnosticService
-from agent_diagnostics_mcp.web_app.html import render_html
+from agent_diagnostics_mcp.repository import DiagnosticRepository
+from agent_diagnostics_mcp.web_app.diagnostic_stream import diagnostic_events
 from agent_diagnostics_mcp.web_app.tool_failures import (
     build_diagnostic,
     detect_provider,
     should_save,
 )
 
+_WEB_APP_DIR = Path(__file__).parent
+_PUBLIC_DIR = _WEB_APP_DIR / "public"
+_STATIC_DIR = _WEB_APP_DIR / "static"
+
 
 def create_app(repository: DiagnosticRepository | None = None) -> FastAPI:
-    repo = repository or SqliteDiagnosticRepository()
-    service = DiagnosticService(repo)
-    mcp_app = build_diagnostics_mcp(repo).http_app(path="/")
+    service = create_diagnostic_service(repository)
+
+    def _save_and_publish(creation: DiagnosticReportCreate) -> DiagnosticReport:
+        saved = service.report(creation)
+        event_hub.publish(saved)
+        return saved
+
+    mcp_app = build_diagnostics_mcp(service=service).http_app(path="/")
 
     app = FastAPI(
         title="Agent Diagnostics",
@@ -35,6 +51,18 @@ def create_app(repository: DiagnosticRepository | None = None) -> FastAPI:
         limit: int = Query(default=20, ge=1, le=100),
     ) -> list[DiagnosticReport]:
         return service.list_recent(limit)
+
+    @app.get("/api/diagnostics/stream", response_class=EventSourceResponse)
+    async def stream_diagnostics(request: Request):
+        async for event in diagnostic_events(request, event_hub):
+            yield event
+
+    @app.get("/api/diagnostics/categories")
+    def list_diagnostic_categories() -> list[dict[str, str]]:
+        return [
+            {"name": category.value, "description": description}
+            for category, description in CATEGORY_DESCRIPTIONS.items()
+        ]
 
     @app.post("/api/tool-call-failures")
     async def log_tool_call_failure(
@@ -56,7 +84,7 @@ def create_app(repository: DiagnosticRepository | None = None) -> FastAPI:
         if not save:
             return {"saved": False, "reason": "not_a_failure"}
 
-        saved = service.report(build_diagnostic(payload, detected))
+        saved = _save_and_publish(build_diagnostic(payload, detected))
         return {
             "saved": True,
             "id": saved.id,
@@ -64,10 +92,10 @@ def create_app(repository: DiagnosticRepository | None = None) -> FastAPI:
             "severity": saved.severity.value,
         }
 
-    @app.get("/", response_class=HTMLResponse)
-    def index(limit: int = Query(default=20, ge=1, le=100)) -> HTMLResponse:
-        reports = service.list_recent(limit)
-        return HTMLResponse(render_html(reports, limit))
+    @app.get("/")
+    def index() -> FileResponse:
+        return FileResponse(_PUBLIC_DIR / "index.html", media_type="text/html")
 
+    app.mount("/assets", StaticFiles(directory=_STATIC_DIR), name="assets")
     app.mount("/mcp", mcp_app)
     return app

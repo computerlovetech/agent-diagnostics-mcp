@@ -2,6 +2,7 @@ from agent_diagnostics_mcp.domain import (
     DiagnosticCategory,
     DiagnosticReportCreate,
     DiagnosticSeverity,
+    DiagnosticSource,
 )
 from agent_diagnostics_mcp.repository import InMemoryDiagnosticRepository
 from agent_diagnostics_mcp.service import DiagnosticService
@@ -18,6 +19,7 @@ def _sample_creation() -> DiagnosticReportCreate:
         summary="Cannot write to /etc",
         evidence="Permission denied on three attempts",
         suggested_fix="Run in elevated sandbox",
+        source=DiagnosticSource.SELF_DIAGNOSTIC,
     )
 
 

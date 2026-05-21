@@ -1,0 +1,178 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 2rem;
+}
+
+h1 {
+  font-size: 1.5rem;
+  margin-bottom: .25rem;
+}
+
+.subtitle {
+  color: #94a3b8;
+  margin-bottom: 1.5rem;
+  font-size: .875rem;
+}
+
+details {
+  margin-bottom: 1.5rem;
+}
+
+summary {
+  cursor: pointer;
+  color: #94a3b8;
+  font-size: .8rem;
+}
+
+.categories {
+  display: flex;
+  gap: .75rem;
+  flex-wrap: wrap;
+  margin-top: .75rem;
+  margin-bottom: 2rem;
+}
+
+.cat-card {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: .5rem;
+  padding: .75rem 1rem;
+  font-size: .75rem;
+  flex: 1 1 14rem;
+  line-height: 1.4;
+}
+
+.cat-card strong {
+  color: #38bdf8;
+  font-size: .8rem;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .85rem;
+}
+
+th {
+  text-align: left;
+  padding: .5rem .75rem;
+  border-bottom: 2px solid #334155;
+  color: #94a3b8;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+td {
+  padding: .5rem .75rem;
+  border-bottom: 1px solid #1e293b;
+  vertical-align: top;
+}
+
+tr:hover td {
+  background: #1e293b;
+}
+
+a {
+  color: #38bdf8;
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+.badge {
+  display: inline-block;
+  padding: .15rem .5rem;
+  border-radius: 9999px;
+  font-size: .7rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.controls {
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+}
+
+.controls label {
+  font-size: .8rem;
+  color: #94a3b8;
+}
+
+.controls select,
+.controls input {
+  background: #1e293b;
+  border: 1px solid #334155;
+  color: #e2e8f0;
+  padding: .35rem .5rem;
+  border-radius: .375rem;
+  font-size: .8rem;
+}
+
+#empty-row td {
+  text-align: center;
+  color: #94a3b8;
+}
+
+.live-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  margin-left: .75rem;
+  font-size: .75rem;
+  color: #94a3b8;
+}
+
+.live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #22c55e;
+  animation: pulse 1.5s infinite;
+}
+
+.live-indicator.connected .live-dot {
+  background: #22c55e;
+}
+
+.live-indicator.disconnected .live-dot {
+  background: #94a3b8;
+  animation: none;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: .4;
+  }
+}
+
+@keyframes row-flash {
+  0% {
+    background: #1e3a5f;
+    box-shadow: inset 0 0 0 1px #38bdf8;
+  }
+
+  100% {
+    background: transparent;
+    box-shadow: none;
+  }
+}
+
+.row-fresh td {
+  animation: row-flash 2s ease-out;
+}

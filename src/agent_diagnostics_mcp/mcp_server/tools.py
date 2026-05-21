@@ -8,7 +8,9 @@ from agent_diagnostics_mcp.domain import (
     DiagnosticCategory,
     DiagnosticReportCreate,
     DiagnosticSeverity,
+    DiagnosticSource,
 )
+from agent_diagnostics_mcp.events import DiagnosticEventHub
 from agent_diagnostics_mcp.service import DiagnosticService
 
 _CATEGORY_LINES = "\n".join(
@@ -32,7 +34,11 @@ The evidence should be concrete and concise.
 The suggested_fix should be actionable and concise."""
 
 
-def register_report_tool(mcp: FastMCP, service: DiagnosticService) -> None:
+def register_report_tool(
+    mcp: FastMCP,
+    service: DiagnosticService,
+    event_hub: DiagnosticEventHub,
+) -> None:
     @mcp.tool(
         name="report_agent_diagnostic",
         description=_REPORT_DESCRIPTION,
@@ -50,8 +56,10 @@ def register_report_tool(mcp: FastMCP, service: DiagnosticService) -> None:
             summary=summary,
             evidence=evidence,
             suggested_fix=suggested_fix,
+            source=DiagnosticSource.SELF_DIAGNOSTIC,
         )
         saved = service.report(creation)
+        event_hub.publish(saved)
         return f"Diagnostic report saved: {saved.category.value} / {saved.severity.value}"
 
 

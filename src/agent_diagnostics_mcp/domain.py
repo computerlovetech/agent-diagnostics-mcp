@@ -41,18 +41,25 @@ class DiagnosticSeverity(StrEnum):
     HIGH = "high"
 
 
+class DiagnosticSource(StrEnum):
+    HOOK = "hook"
+    SELF_DIAGNOSTIC = "self_diagnostic"
+
+
 class DiagnosticReportCreate(BaseModel):
     category: DiagnosticCategory = Field(description="The category of the diagnostic report.")
     severity: DiagnosticSeverity = Field(description="The severity of the diagnostic report.")
     summary: str = Field(min_length=5 ,description="A concise summary of the issue.")
     evidence: str = Field(min_length=5,description="A concise summary of the evidence for the issue.")
     suggested_fix: str = Field(min_length=5,description="A suggested fix to the reported issue.")
+    source: DiagnosticSource
 
 
 class DiagnosticReport(BaseModel):
     id: int
     category: DiagnosticCategory
     severity: DiagnosticSeverity
+    source: DiagnosticSource
     summary: str
     evidence: str
     suggested_fix: str

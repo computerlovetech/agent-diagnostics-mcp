@@ -11,6 +11,7 @@ from agent_diagnostics_mcp.domain import (
     DiagnosticReport,
     DiagnosticReportCreate,
     DiagnosticSeverity,
+    DiagnosticSource,
 )
 
 _DEFAULT_DB_PATH = Path.home() / ".agent-diagnostics" / "diagnostics.sqlite3"
@@ -23,8 +24,13 @@ CREATE TABLE IF NOT EXISTS diagnostic_reports (
     summary TEXT NOT NULL,
     evidence TEXT NOT NULL,
     suggested_fix TEXT NOT NULL,
+    source TEXT NOT NULL,
     created_at TEXT NOT NULL
 )
+"""
+
+_MIGRATE_ADD_SOURCE = """
+ALTER TABLE diagnostic_reports ADD COLUMN source TEXT NOT NULL DEFAULT 'self_diagnostic'
 """
 
 
@@ -46,6 +52,7 @@ class InMemoryDiagnosticRepository:
             summary=report.summary,
             evidence=report.evidence,
             suggested_fix=report.suggested_fix,
+            source=report.source,
             created_at=datetime.now(timezone.utc),
         )
         self._next_id += 1
@@ -64,6 +71,11 @@ class SqliteDiagnosticRepository:
         with self._lock:
             self._conn.execute("PRAGMA journal_mode=WAL")
             self._conn.execute(_CREATE_TABLE)
+            columns = {
+                row[1] for row in self._conn.execute("PRAGMA table_info(diagnostic_reports)")
+            }
+            if "source" not in columns:
+                self._conn.execute(_MIGRATE_ADD_SOURCE)
             self._conn.commit()
 
     def save(self, report: DiagnosticReportCreate) -> DiagnosticReport:
@@ -71,8 +83,8 @@ class SqliteDiagnosticRepository:
         with self._lock:
             cursor = self._conn.execute(
                 """
-                INSERT INTO diagnostic_reports (category, severity, summary, evidence, suggested_fix, created_at)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO diagnostic_reports (category, severity, summary, evidence, suggested_fix, source, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     report.category.value,
@@ -80,6 +92,7 @@ class SqliteDiagnosticRepository:
                     report.summary,
                     report.evidence,
                     report.suggested_fix,
+                    report.source.value,
                     now.isoformat(),
                 ),
             )
@@ -91,13 +104,14 @@ class SqliteDiagnosticRepository:
             summary=report.summary,
             evidence=report.evidence,
             suggested_fix=report.suggested_fix,
+            source=report.source,
             created_at=now,
         )
 
     def list_recent(self, limit: int = 20) -> list[DiagnosticReport]:
         with self._lock:
             rows = self._conn.execute(
-                "SELECT id, category, severity, summary, evidence, suggested_fix, created_at "
+                "SELECT id, category, severity, summary, evidence, suggested_fix, source, created_at "
                 "FROM diagnostic_reports ORDER BY id DESC LIMIT ?",
                 (limit,),
             ).fetchall()
@@ -109,7 +123,8 @@ class SqliteDiagnosticRepository:
                 summary=row[3],
                 evidence=row[4],
                 suggested_fix=row[5],
-                created_at=datetime.fromisoformat(row[6]),
+                source=DiagnosticSource(row[6]),
+                created_at=datetime.fromisoformat(row[7]),
             )
             for row in rows
         ]

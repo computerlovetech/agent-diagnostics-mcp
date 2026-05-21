@@ -8,6 +8,7 @@ from agent_diagnostics_mcp.domain import (
     DiagnosticCategory,
     DiagnosticReportCreate,
     DiagnosticSeverity,
+    DiagnosticSource,
 )
 
 
@@ -136,4 +137,5 @@ def build_diagnostic(payload: dict[str, Any], provider: Provider) -> DiagnosticR
         summary=summary,
         evidence=evidence,
         suggested_fix=_suggested_fix(failure_type, is_interrupt),
+        source=DiagnosticSource.HOOK,
     )

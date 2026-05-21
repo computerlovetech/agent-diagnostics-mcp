@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Agent Diagnostics</title>
+  <link rel="stylesheet" href="/assets/styles.css">
+  <script src="/assets/app.js" defer></script>
+</head>
+
+<body>
+  <h1>Agent Diagnostics<span class="live-indicator disconnected" id="live-badge"><span class="live-dot"></span><span
+        id="live-text">Connecting&hellip;</span></span></h1>
+  <p class="subtitle">Self-reported agent failures &middot; showing last <span id="limit-label">20</span> reports
+    &middot; <a id="json-link" href="/api/diagnostics?limit=20">JSON</a></p>
+
+  <details>
+    <summary>Category reference</summary>
+    <div class="categories" id="categories"></div>
+  </details>
+
+  <div class="controls">
+    <form method="get" action="/">
+      <label for="limit">Show</label>
+      <select name="limit" id="limit">
+        <option value="10">10</option>
+        <option value="20" selected>20</option>
+        <option value="50">50</option>
+        <option value="100">100</option>
+      </select>
+      <label>reports</label>
+    </form>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Time</th>
+        <th>Category</th>
+        <th>Severity</th>
+        <th>Summary</th>
+        <th>Suggested Fix</th>
+      </tr>
+    </thead>
+    <tbody id="reports">
+      <tr id="empty-row">
+        <td colspan="6">No reports yet</td>
+      </tr>
+    </tbody>
+  </table>
+</body>
+
+</html>

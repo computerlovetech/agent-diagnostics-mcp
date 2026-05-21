@@ -1,3 +1,6 @@
+import asyncio
+from datetime import datetime
+
 from httpx import ASGITransport, AsyncClient
 
 import pytest
@@ -5,11 +8,14 @@ from starlette.testclient import TestClient
 
 from agent_diagnostics_mcp.domain import (
     DiagnosticCategory,
+    DiagnosticReport,
     DiagnosticReportCreate,
     DiagnosticSeverity,
+    DiagnosticSource,
 )
 from agent_diagnostics_mcp.repository import InMemoryDiagnosticRepository
 from agent_diagnostics_mcp.web_app import create_app
+from agent_diagnostics_mcp.events import DiagnosticEventHub
 
 
 @pytest.fixture
@@ -31,6 +37,7 @@ def _sample_creation() -> DiagnosticReportCreate:
         summary="Agent retried 12 times",
         evidence="Same tool call repeated in logs",
         suggested_fix="Add loop detection to orchestrator",
+        source=DiagnosticSource.SELF_DIAGNOSTIC,
     )
 
 
@@ -60,23 +67,34 @@ class TestDiagnosticsApi:
         assert len(data) == 1
         assert data[0]["category"] == "suspicious_loop"
 
+    @pytest.mark.anyio
+    async def test_list_categories(self, client: AsyncClient) -> None:
+        resp = await client.get("/api/diagnostics/categories")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert {
+            "name": "missing_context",
+            "description": "Critical information, credentials, or access is missing.",
+        } in data
+
 
 class TestIndexPage:
     @pytest.mark.anyio
-    async def test_empty_state_renders_html(self, client: AsyncClient) -> None:
+    async def test_serves_static_html_document(self, client: AsyncClient) -> None:
         resp = await client.get("/")
         assert resp.status_code == 200
         assert "Agent Diagnostics" in resp.text
         assert "No reports yet" in resp.text
+        assert '<link rel="stylesheet" href="/assets/styles.css">' in resp.text
+        assert '<script src="/assets/app.js" defer></script>' in resp.text
 
     @pytest.mark.anyio
-    async def test_with_report_renders_summary(
-        self, client: AsyncClient, repo: InMemoryDiagnosticRepository
-    ) -> None:
-        repo.save(_sample_creation())
-        resp = await client.get("/")
+    async def test_serves_static_assets(self, client: AsyncClient) -> None:
+        resp = await client.get("/assets/app.js")
         assert resp.status_code == 200
-        assert "Agent retried 12 times" in resp.text
+        assert "EventSource" in resp.text
+        assert "row-fresh" in resp.text
+        assert "/api/diagnostics/stream" in resp.text
 
 
 class TestMcpHttpTransport:
@@ -131,6 +149,7 @@ class TestToolCallFailures:
         assert len(reports) == 1
         assert "Shell" in reports[0].summary
         assert "Command timed out after 30s" in reports[0].evidence
+        assert reports[0].source == DiagnosticSource.HOOK
 
     @pytest.mark.anyio
     async def test_claude_post_tool_use_failure_saves_report(
@@ -204,3 +223,88 @@ class TestToolCallFailures:
         resp = await client.post("/api/tool-call-failures", json=payload)
         assert resp.status_code == 400
         assert repo.list_recent() == []
+
+
+class TestSSEStream:
+    @pytest.mark.anyio
+    async def test_stream_endpoint_exists(self, client: AsyncClient) -> None:
+        app = client._transport.app  # type: ignore[attr-defined]
+        routes = {r.path for r in app.routes}
+        assert "/api/diagnostics/stream" in routes
+
+    @pytest.mark.anyio
+    async def test_event_hub_publishes_to_subscriber(self) -> None:
+        hub = DiagnosticEventHub()
+        queue = hub.subscribe()
+
+        report = DiagnosticReport(
+            id=1,
+            category=DiagnosticCategory.SUSPICIOUS_LOOP,
+            severity=DiagnosticSeverity.HIGH,
+            source=DiagnosticSource.HOOK,
+            summary="Agent retried 12 times",
+            evidence="Same tool call repeated",
+            suggested_fix="Add loop detection",
+            created_at=datetime(2026, 1, 1),
+        )
+        hub.publish(report)
+
+        received = await asyncio.wait_for(queue.get(), timeout=1)
+        assert received.id == 1
+        assert received.category == DiagnosticCategory.SUSPICIOUS_LOOP
+
+        hub.unsubscribe(queue)
+        hub.publish(report)
+        assert queue.empty()
+
+    @pytest.mark.anyio
+    async def test_event_hub_instances_share_subscribers(self) -> None:
+        subscriber_hub = DiagnosticEventHub()
+        publisher_hub = DiagnosticEventHub()
+        queue = subscriber_hub.subscribe()
+
+        report = DiagnosticReport(
+            id=1,
+            category=DiagnosticCategory.SUSPICIOUS_LOOP,
+            severity=DiagnosticSeverity.HIGH,
+            source=DiagnosticSource.HOOK,
+            summary="Agent retried 12 times",
+            evidence="Same tool call repeated",
+            suggested_fix="Add loop detection",
+            created_at=datetime(2026, 1, 1),
+        )
+        publisher_hub.publish(report)
+
+        received = await asyncio.wait_for(queue.get(), timeout=1)
+        assert received.id == 1
+        assert received.category == DiagnosticCategory.SUSPICIOUS_LOOP
+
+        subscriber_hub.unsubscribe(queue)
+
+    @pytest.mark.anyio
+    async def test_hook_post_saves_and_publishes(
+        self, client: AsyncClient, repo: InMemoryDiagnosticRepository
+    ) -> None:
+        payload = {
+            "hook_event_name": "postToolUseFailure",
+            "tool_name": "Shell",
+            "tool_input": {"command": "npm test"},
+            "tool_use_id": "sse-test-1",
+            "cwd": "/project",
+            "error_message": "Timeout",
+            "failure_type": "timeout",
+            "duration": 3000,
+            "is_interrupt": False,
+        }
+        resp = await client.post("/api/tool-call-failures", json=payload)
+        assert resp.status_code == 200
+        assert resp.json()["saved"] is True
+        assert len(repo.list_recent()) == 1
+
+
+class TestIndexPageLiveUI:
+    @pytest.mark.anyio
+    async def test_index_contains_live_ui_anchor(self, client: AsyncClient) -> None:
+        resp = await client.get("/")
+        assert resp.status_code == 200
+        assert "live-badge" in resp.text

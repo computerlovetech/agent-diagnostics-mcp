@@ -8,6 +8,7 @@ from agent_diagnostics_mcp.domain import (
     DiagnosticCategory,
     DiagnosticReportCreate,
     DiagnosticSeverity,
+    DiagnosticSource,
 )
 from agent_diagnostics_mcp.repository import (
     DiagnosticRepository,
@@ -26,6 +27,7 @@ def _sample_creation(
         summary="Cannot find API key",
         evidence="Tried three env var names, none set",
         suggested_fix="Add API_KEY to .env.example",
+        source=DiagnosticSource.SELF_DIAGNOSTIC,
     )
 
 
