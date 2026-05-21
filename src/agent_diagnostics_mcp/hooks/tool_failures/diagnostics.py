@@ -15,7 +15,7 @@ def build_diagnostic(failure: NormalizedToolFailure) -> DiagnosticReportCreate:
     category, severity = _category_and_severity(failure.failure_type, failure.is_interrupt)
     summary = (
         f"{failure.provider.value}: {failure.tool_name} failed - "
-        f"{failure.error_message[:120]}"
+        f"{failure.error_message}"
     )
     evidence = json.dumps(
         {
