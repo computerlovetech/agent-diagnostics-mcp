@@ -52,6 +52,9 @@ class CopilotToolFailureInput(_ProviderPayloadBase):
     toolName: str | None = None
     toolArgs: Any = None
     sessionId: str | None = None
+    tool_name: str | None = None
+    tool_input: Any = None
+    session_id: str | None = None
     cwd: str | None = None
     error: str | None = None
     error_message: str | None = None

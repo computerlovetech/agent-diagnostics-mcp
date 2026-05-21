@@ -235,6 +235,68 @@ class TestToolCallFailures:
         assert "Command exited with status 1" in reports[0].evidence
 
     @pytest.mark.anyio
+    async def test_copilot_camel_case_without_hook_event_name_saves_report(
+        self, client: AsyncClient, repo: InMemoryDiagnosticRepository
+    ) -> None:
+        payload = {
+            "provider": "copilot",
+            "sessionId": "sess-1",
+            "toolName": "bash",
+            "toolArgs": {"command": "npm test"},
+            "error": "Command exited with status 1",
+            "cwd": "/workspace",
+        }
+        resp = await client.post("/api/tool-call-failures", json=payload)
+        assert resp.status_code == 200
+        assert resp.json()["saved"] is True
+
+        reports = repo.list_recent()
+        assert len(reports) == 1
+        assert "bash" in reports[0].summary
+
+    @pytest.mark.anyio
+    async def test_copilot_vscode_compatible_fields_saves_report(
+        self, client: AsyncClient, repo: InMemoryDiagnosticRepository
+    ) -> None:
+        payload = {
+            "provider": "copilot",
+            "hook_event_name": "PostToolUseFailure",
+            "session_id": "sess-1",
+            "tool_name": "bash",
+            "tool_input": {"command": "npm test"},
+            "error": "Command exited with status 1",
+            "cwd": "/workspace",
+        }
+        resp = await client.post("/api/tool-call-failures", json=payload)
+        assert resp.status_code == 200
+        assert resp.json()["saved"] is True
+
+        reports = repo.list_recent()
+        assert len(reports) == 1
+        assert "bash" in reports[0].summary
+        assert '"tool_use_id": "sess-1"' in reports[0].evidence
+
+    @pytest.mark.anyio
+    async def test_codex_reason_preferred_over_tool_response_stderr(
+        self, client: AsyncClient, repo: InMemoryDiagnosticRepository
+    ) -> None:
+        payload = {
+            "provider": "codex",
+            "hook_event_name": "PostToolUse",
+            "tool_name": "Bash",
+            "reason": "Hook blocked continuation",
+            "tool_response": {"exitCode": 1, "stderr": "FAIL"},
+        }
+        resp = await client.post("/api/tool-call-failures", json=payload)
+        assert resp.status_code == 200
+        assert resp.json()["saved"] is True
+
+        reports = repo.list_recent()
+        assert len(reports) == 1
+        assert "Hook blocked continuation" in reports[0].evidence
+        assert "FAIL" not in reports[0].evidence
+
+    @pytest.mark.anyio
     async def test_codex_post_tool_use_without_stop_reason_is_ignored(
         self, client: AsyncClient, repo: InMemoryDiagnosticRepository
     ) -> None:
