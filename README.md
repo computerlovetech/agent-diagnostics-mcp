@@ -4,6 +4,8 @@ An MCP server that lets agents self-report genuine failures — missing context,
 
 ## Setup
 
+Requires Python 3.11 or newer.
+
 Clone the GitHub repository:
 
 ```bash
@@ -11,13 +13,13 @@ git clone https://github.com/computerlovetech/agent-diagnostics-mcp.git
 cd agent-diagnostics-mcp
 ```
 
-Install with uv:
+Install dependencies for local development with uv:
 
 ```bash
 uv sync --group dev
 ```
 
-Or install with pip:
+Or install the package into a virtual environment with pip:
 
 ```bash
 python -m venv .venv
@@ -28,13 +30,26 @@ python -m pip install -e .
 ## Run the web UI and MCP server
 
 ```bash
+uv run agent-diagnostics run
+```
+
+For development reloads:
+
+```bash
 uv run agent-diagnostics run --reload
+```
+
+By default this binds `127.0.0.1:8765` and fails if the port is already in use. Use
+`--host` or `--port` to override it:
+
+```bash
+uv run agent-diagnostics run --host 127.0.0.1 --port 9000
 ```
 
 Or with uvicorn directly:
 
 ```bash
-uv run uvicorn agent_diagnostics_mcp.web_app:app --reload --port 8765
+uv run uvicorn agent_diagnostics_mcp.web_app:app --host 127.0.0.1 --port 8765 --reload
 ```
 
 Then open `http://localhost:8765`.
@@ -47,16 +62,20 @@ The MCP HTTP endpoint is available at `http://localhost:8765/mcp/`.
 uv run python -m agent_diagnostics_mcp.mcp_server
 ```
 
-This starts the MCP HTTP transport at `http://127.0.0.1:8011/mcp`.
+This standalone MCP-only entrypoint starts the MCP HTTP transport at
+`http://127.0.0.1:8011/mcp`. The `agent-diagnostics install` command does **not** target this
+standalone port by default; it targets the combined web UI + MCP server at
+`http://localhost:8765/mcp/`.
 
 ## MCP client configuration
 
-Start the server first (`agent-diagnostics run`), then use the CLI to register the MCP endpoint
-in your client's settings file.
+Start the combined server first (`agent-diagnostics run`), then use the CLI to register the MCP
+endpoint and failure-reporting hooks in your client's settings files.
 
 ### `agent-diagnostics install`
 
-Adds or updates an `agent-diagnostics` MCP server entry for one client.
+Adds or updates an `agent-diagnostics` MCP server entry and installs the matching
+failure-reporting hook for one client.
 
 ```bash
 # uv
@@ -78,21 +97,28 @@ agent-diagnostics install cursor
 | `CLIENT` | (required) | MCP client to configure |
 | `--url` | `http://localhost:8765/mcp/` | MCP endpoint URL |
 | `--name` | `agent-diagnostics` | Server name in the settings file |
-| `--settings-file` | Client default (see below) | Path to a custom settings file |
+| `--settings-file` | Client default (see below) | Path to a custom MCP settings file |
+| `--hooks-url` | `http://localhost:8765/api/tool-call-failures` | Hook target URL |
+| `--hooks-settings-file` | Client default (see below) | Path to a custom hooks settings file |
 
 Example with a non-default URL or project-local settings:
 
 ```bash
-uv run agent-diagnostics install cursor --url http://127.0.0.1:9000/mcp/
-uv run agent-diagnostics install cursor --settings-file .cursor/mcp.json
+uv run agent-diagnostics install cursor \
+  --url http://127.0.0.1:9000/mcp/ \
+  --hooks-url http://127.0.0.1:9000/api/tool-call-failures
+uv run agent-diagnostics install cursor \
+  --settings-file .cursor/mcp.json \
+  --hooks-settings-file .cursor/hooks.json
 ```
 
-On success, the command prints which file was updated and which URL was written.
+On success, the command prints which MCP and hook files were updated and which URLs were
+written.
 
 ### `agent-diagnostics uninstall`
 
-Removes the `agent-diagnostics` MCP server entry from **all** supported clients (Cursor, Claude
-Code, Codex, and Copilot) in one run.
+Removes the `agent-diagnostics` MCP server entry and installed hooks from **all** supported
+clients (Cursor, Claude Code, Codex, and Copilot) in one run.
 
 ```bash
 # uv
@@ -108,7 +134,8 @@ agent-diagnostics uninstall
 | --- | --- | --- |
 | `--name` | `agent-diagnostics` | Server name to remove |
 
-The command reports whether an entry was removed or was already absent for each client.
+The command reports whether an MCP entry was removed or was already absent for each client,
+and reports hook removals when hooks were present.
 
 ### Settings files
 
@@ -192,13 +219,7 @@ uv run agent-diagnostics install copilot
 ```
 
 `install` writes both the MCP server entry and a failure-reporting hook for the chosen client.
-
-**Hook options:**
-
-| Option | Default | Description |
-| --- | --- | --- |
-| `--hooks-url` | `http://localhost:8765/api/tool-call-failures` | Hook target URL |
-| `--hooks-settings-file` | Client default (see below) | Path to a custom hooks settings file |
+Use `--hooks-url` or `--hooks-settings-file` to override the hook defaults.
 
 ### Hooks settings files
 
