@@ -14,7 +14,6 @@ from agent_diagnostics_mcp.hooks.tool_failures.inputs import (
 from agent_diagnostics_mcp.hooks.tool_failures.providers import Provider
 
 _COPILOT_HOOK_EVENTS = frozenset({"postToolUseFailure", "PostToolUseFailure"})
-_DEFAULT_COPILOT_HOOK_EVENT = "postToolUseFailure"
 
 
 class ToolFailureNormalizer:
@@ -35,7 +34,7 @@ class ToolFailureNormalizer:
         return NormalizedToolFailure(
             provider=Provider.CURSOR,
             hook_event_name=payload.hook_event_name,
-            tool_name=_tool_name(payload.tool_name),
+            tool_name=payload.tool_name,
             tool_input=payload.tool_input,
             tool_use_id=payload.tool_use_id,
             cwd=payload.cwd,
@@ -53,7 +52,7 @@ class ToolFailureNormalizer:
         return NormalizedToolFailure(
             provider=Provider.CLAUDE,
             hook_event_name=payload.hook_event_name,
-            tool_name=_tool_name(payload.tool_name),
+            tool_name=payload.tool_name,
             tool_input=payload.tool_input,
             tool_use_id=payload.tool_use_id,
             cwd=payload.cwd,
@@ -72,7 +71,7 @@ class ToolFailureNormalizer:
         return NormalizedToolFailure(
             provider=Provider.CODEX,
             hook_event_name=payload.hook_event_name,
-            tool_name=_tool_name(payload.tool_name),
+            tool_name=payload.tool_name,
             tool_input=payload.tool_input,
             tool_use_id=payload.tool_use_id,
             cwd=payload.cwd,
@@ -84,29 +83,23 @@ class ToolFailureNormalizer:
 
     def _normalize_copilot(self, payload: CopilotToolFailureInput) -> NormalizedToolFailure | None:
         hook_event_name = _copilot_hook_event_name(payload.hook_event_name)
-        error = str(payload.error or payload.error_message or "Unknown error")
+        error = payload.error_message
         failure_type = "permission_denied" if "permission" in error.lower() else "error"
         return NormalizedToolFailure(
             provider=Provider.COPILOT,
             hook_event_name=hook_event_name,
-            tool_name=_tool_name(payload.toolName or payload.tool_name),
-            tool_input=payload.toolArgs if payload.toolArgs is not None else payload.tool_input,
-            tool_use_id=payload.sessionId or payload.session_id,
+            tool_name=payload.tool_name,
+            tool_input=payload.tool_input,
+            tool_use_id=payload.tool_use_id,
             cwd=payload.cwd,
-            duration=payload.duration or payload.duration_ms,
+            duration=payload.duration,
             failure_type=failure_type,
             error_message=error,
             is_interrupt=payload.is_interrupt,
         )
 
 
-def _tool_name(name: str | None) -> str:
-    return str(name or "unknown")
-
-
 def _copilot_hook_event_name(hook_event_name: str) -> str:
-    if not hook_event_name:
-        return _DEFAULT_COPILOT_HOOK_EVENT
     if hook_event_name not in _COPILOT_HOOK_EVENTS:
         raise UnsupportedHookEventError(hook_event_name)
     return hook_event_name
@@ -120,10 +113,7 @@ def _codex_error_message(payload: CodexToolUseInput) -> str | None:
     return _codex_tool_response_error(payload.tool_response)
 
 
-def _codex_tool_response_error(tool_response: dict[str, Any] | None) -> str | None:
-    if not isinstance(tool_response, dict):
-        return None
-
+def _codex_tool_response_error(tool_response: dict[str, Any]) -> str | None:
     for key in ("exitCode", "exit_code"):
         code = tool_response.get(key)
         if isinstance(code, int) and code != 0:

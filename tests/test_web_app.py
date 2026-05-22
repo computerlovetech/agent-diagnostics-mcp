@@ -196,6 +196,7 @@ class TestToolCallFailures:
             "tool_input": {"command": "npm test"},
             "tool_use_id": "tc-789",
             "cwd": "/project",
+            "tool_response": {},
             "stopReason": "The Bash output needs review before continuing.",
         }
         resp = await client.post("/api/tool-call-failures", json=payload)
@@ -235,7 +236,7 @@ class TestToolCallFailures:
         assert "Command exited with status 1" in reports[0].evidence
 
     @pytest.mark.anyio
-    async def test_copilot_camel_case_without_hook_event_name_saves_report(
+    async def test_copilot_without_hook_event_name_returns_validation_error(
         self, client: AsyncClient, repo: InMemoryDiagnosticRepository
     ) -> None:
         payload = {
@@ -247,12 +248,8 @@ class TestToolCallFailures:
             "cwd": "/workspace",
         }
         resp = await client.post("/api/tool-call-failures", json=payload)
-        assert resp.status_code == 200
-        assert resp.json()["saved"] is True
-
-        reports = repo.list_recent()
-        assert len(reports) == 1
-        assert "bash" in reports[0].summary
+        assert resp.status_code == 422
+        assert repo.list_recent() == []
 
     @pytest.mark.anyio
     async def test_copilot_vscode_compatible_fields_saves_report(
@@ -284,6 +281,9 @@ class TestToolCallFailures:
             "provider": "codex",
             "hook_event_name": "PostToolUse",
             "tool_name": "Bash",
+            "tool_input": {"command": "npm test"},
+            "tool_use_id": "tc-789",
+            "cwd": "/project",
             "reason": "Hook blocked continuation",
             "tool_response": {"exitCode": 1, "stderr": "FAIL"},
         }
@@ -305,6 +305,8 @@ class TestToolCallFailures:
             "hook_event_name": "PostToolUse",
             "tool_name": "Bash",
             "tool_input": {"command": "npm test"},
+            "tool_use_id": "tc-789",
+            "cwd": "/project",
             "tool_response": {"stdout": "All tests passed", "stderr": ""},
         }
         resp = await client.post("/api/tool-call-failures", json=payload)
@@ -320,6 +322,9 @@ class TestToolCallFailures:
             "provider": "codex",
             "hook_event_name": "PostToolUse",
             "tool_name": "Bash",
+            "tool_input": {"command": "npm test"},
+            "tool_use_id": "tc-789",
+            "cwd": "/project",
             "tool_response": {"exitCode": 1, "stderr": "FAIL"},
         }
         resp = await client.post("/api/tool-call-failures", json=payload)
@@ -358,7 +363,14 @@ class TestToolCallFailures:
         payload = {
             "provider": "cursor",
             "hook_event_name": "sessionStart",
-            "session_id": "abc123",
+            "tool_name": "Shell",
+            "tool_input": {"command": "npm test"},
+            "tool_use_id": "abc123",
+            "cwd": "/project",
+            "error_message": "Command timed out after 30s",
+            "failure_type": "timeout",
+            "duration": 5000,
+            "is_interrupt": False,
         }
         resp = await client.post("/api/tool-call-failures", json=payload)
         assert resp.status_code == 400

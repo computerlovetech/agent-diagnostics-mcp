@@ -12,8 +12,8 @@ class NormalizedToolFailure(BaseModel):
     hook_event_name: str
     tool_name: str
     tool_input: Any
-    tool_use_id: str | None
-    cwd: str | None
+    tool_use_id: str
+    cwd: str
     duration: Any
     failure_type: str
     error_message: str
