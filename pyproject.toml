@@ -6,6 +6,7 @@ build-backend = "hatchling.build"
 name = "agent-diagnostics-mcp"
 version = "0.1.0"
 description = "Agent self-diagnostics MCP server with FastAPI inspection UI"
+license = "MIT"
 requires-python = ">=3.11"
 dependencies = [
     "fastmcp>=3.2.4",
